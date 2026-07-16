@@ -4,11 +4,11 @@ pnpm-debug.log*
 npm-debug.log*
 
 # WXT
-extension/.wxt/
-extension/.output/
-extension/web-ext.config.ts
-extension/stats.html
-extension/stats-*.json
+.wxt/
+.output/
+web-ext.config.ts
+stats.html
+stats-*.json
 
 # Env / secrets
 .env
