@@ -4,9 +4,18 @@ import { Button, Tabs, Typography } from 'antd';
 import { SettingOutlined } from '@ant-design/icons';
 import { CurrentPageView } from '@/components/CurrentPageView';
 import { ClipListView } from '@/components/ClipListView';
+import { ChatView } from '@/components/ChatView';
 
 export default function App() {
   const [tab, setTab] = useState('current');
+  const [chatClipId, setChatClipId] = useState<string>();
+  const [chatNonce, setChatNonce] = useState(0);
+
+  const openChatForClip = (clipId: string) => {
+    setChatClipId(clipId);
+    setChatNonce((n) => n + 1);
+    setTab('chat');
+  };
 
   return (
     <div className="app">
@@ -30,7 +39,18 @@ export default function App() {
         className="app-tabs"
         items={[
           { key: 'current', label: '当前网页', children: <CurrentPageView /> },
-          { key: 'clips', label: '我的收藏', children: <ClipListView /> },
+          {
+            key: 'clips',
+            label: '我的收藏',
+            children: <ClipListView onChat={openChatForClip} />,
+          },
+          {
+            key: 'chat',
+            label: '对话',
+            children: (
+              <ChatView pendingClipId={chatClipId} pendingNonce={chatNonce} />
+            ),
+          },
         ]}
       />
     </div>

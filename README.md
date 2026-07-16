@@ -406,9 +406,11 @@ export default defineConfig({
       'scripting',
       'storage',
       'tabs',
+      'sidePanel',
     ],
 
     host_permissions: [
+      '<all_urls>',
       'https://api.deepseek.com/*',
     ],
 
@@ -427,9 +429,11 @@ export default defineConfig({
 | `scripting`                   | 向当前标签页注入网页采集脚本         |
 | `storage`                     | 保存收藏、对话记录、设置和缓存       |
 | `tabs`                        | 获取当前标签页标题、URL、favicon     |
+| `sidePanel`                   | 使用 Chrome Side Panel API           |
+| `<all_urls>`                  | 在任意网页注入采集脚本（见下方说明） |
 | `https://api.deepseek.com/*`  | 从插件直接调用 DeepSeek 接口         |
 
-尽量不要在安装阶段直接申请 `<all_urls>`。
+关于 `<all_urls>`：`activeTab` 只在"点击扩展图标那一刻"授予当前标签页权限，侧边栏常驻打开后，用户切换标签或跳转页面，再点击面板内的"读取并整理"按钮时（不算 activeTab 手势），脚本注入会被浏览器拒绝。因此剪藏类插件需要在安装时申请 `<all_urls>`。插件承诺只在用户主动点击时才注入采集脚本。
 
 ---
 
@@ -1379,7 +1383,7 @@ export type ErrorCode =
 5. 不要引入未要求的复杂框架和后端。
 6. API Key 只保存在 browser.storage.local，不进入代码和打包产物。
 7. 使用 activeTab 和 scripting 读取当前网页。
-8. 不要默认申请 <all_urls>。
+8. 需要申请 <all_urls> 主机权限（侧边栏内点击按钮不授予 activeTab），但只在用户主动点击时注入脚本。
 9. 页面采集不得读取密码框、Cookie、LocalStorage 和输入框内容。
 10. 所有 TypeScript 开启严格模式。
 11. AI 输出必须进行 JSON 解析和字段校验。

@@ -31,8 +31,12 @@ export async function extractCurrentPage(
       func: collectPageData,
       args: [options.maxContentLength],
     });
-  } catch {
-    throw new AppError('PAGE_EXTRACT_FAILED', '页面脚本注入失败，请刷新页面后重试');
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new AppError(
+      'PAGE_EXTRACT_FAILED',
+      `页面脚本注入失败，请刷新页面后重试（${detail}）`,
+    );
   }
 
   const snapshot = results[0]?.result as

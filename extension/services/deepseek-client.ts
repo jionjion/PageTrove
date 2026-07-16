@@ -186,3 +186,131 @@ export async function analyzePage(
     ? lastError
     : new AppError('INVALID_AI_RESPONSE');
 }
+
+/* ------------------------- 网页对话（流式） ------------------------- */
+
+export interface ChatContext {
+  title: string;
+  url: string;
+  content: string;
+}
+
+function buildChatSystemPrompt(ctx: ChatContext): string {
+  return `你是"网站藏宝库"的网页问答助手。请基于下面的网页内容回答用户的问题。
+
+要求：
+
+1. 优先依据网页内容回答；网页内容中没有的信息要如实说明，不得编造。
+2. 回答使用中文，简洁明了。
+3. 可以结合常识做适度延伸，但要区分"网页内容"和"你的补充"。
+
+网页标题：${ctx.title}
+网页地址：${ctx.url}
+
+网页内容：
+${ctx.content || '（内容为空）'}`;
+}
+
+/** 只发送最近的若干轮，避免上下文无限增长 */
+const MAX_HISTORY_MESSAGES = 12;
+
+/**
+ * 流式对话。每收到一段增量文本调用一次 onDelta（参数为累计的完整文本）。
+ * 返回完整回复。
+ */
+export async function streamChat(
+  ctx: ChatContext,
+  history: { role: 'user' | 'assistant'; content: string }[],
+  settings: ExtensionSettings,
+  onDelta: (fullText: string) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!settings.deepseekApiKey.trim()) {
+    throw new AppError('MISSING_API_KEY');
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120_000);
+  signal?.addEventListener('abort', () => controller.abort());
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${settings.deepseekBaseUrl.replace(/\/$/, '')}/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${settings.deepseekApiKey}`,
+        },
+        body: JSON.stringify({
+          model: settings.model,
+          messages: [
+            { role: 'system', content: buildChatSystemPrompt(ctx) },
+            ...history.slice(-MAX_HISTORY_MESSAGES),
+          ],
+          temperature: 1.0,
+          stream: true,
+        }),
+        signal: controller.signal,
+      },
+    );
+  } catch (error) {
+    clearTimeout(timer);
+    if (signal?.aborted) throw error;
+    throw new AppError('NETWORK_ERROR');
+  }
+
+  if (response.status === 401 || response.status === 402 || response.status === 403) {
+    clearTimeout(timer);
+    throw new AppError('AI_UNAUTHORIZED');
+  }
+  if (!response.ok || !response.body) {
+    clearTimeout(timer);
+    throw new AppError('AI_ANALYZE_FAILED', `AI 请求失败（HTTP ${response.status}）`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (payload === '[DONE]') continue;
+
+        try {
+          const chunk = JSON.parse(payload) as {
+            choices?: { delta?: { content?: string } }[];
+          };
+          const delta = chunk.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullText += delta;
+            onDelta(fullText);
+          }
+        } catch {
+          // 跳过无法解析的 SSE 行
+        }
+      }
+    }
+  } finally {
+    clearTimeout(timer);
+    reader.releaseLock();
+  }
+
+  if (!fullText.trim()) {
+    throw new AppError('INVALID_AI_RESPONSE');
+  }
+  return fullText;
+}

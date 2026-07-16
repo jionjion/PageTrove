@@ -14,6 +14,7 @@ import {
 import {
   DeleteOutlined,
   ExportOutlined,
+  MessageOutlined,
   SaveOutlined,
 } from '@ant-design/icons';
 import type { ClipIndexEntry, WebClip } from '@/types/clip';
@@ -26,7 +27,12 @@ import {
 } from '@/services/clip-store';
 import { toErrorMessage } from '@/utils/errors';
 
-export function ClipListView() {
+interface Props {
+  /** 点击"对话"按钮时回调，切换到对话标签页 */
+  onChat?: (clipId: string) => void;
+}
+
+export function ClipListView({ onChat }: Props) {
   const [entries, setEntries] = useState<ClipIndexEntry[]>([]);
   const [keyword, setKeyword] = useState('');
   const [tag, setTag] = useState<string>();
@@ -225,6 +231,15 @@ export function ClipListView() {
                   >
                     保存修改
                   </Button>
+                  {onChat && (
+                    <Button
+                      size="small"
+                      icon={<MessageOutlined />}
+                      onClick={() => onChat(entry.id)}
+                    >
+                      对话
+                    </Button>
+                  )}
                   <Popconfirm
                     title="确定删除这条收藏吗？"
                     okText="删除"
