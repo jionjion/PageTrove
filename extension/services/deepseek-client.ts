@@ -102,12 +102,12 @@ async function requestChatCompletion(
   let response: Response;
   try {
     response = await fetch(
-      `${settings.deepseekBaseUrl.replace(/\/$/, '')}/chat/completions`,
+      `${settings.baseUrl.replace(/\/$/, '')}/chat/completions`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${settings.deepseekApiKey}`,
+          Authorization: `Bearer ${settings.apiKey}`,
         },
         body: JSON.stringify({
           model: settings.model,
@@ -150,7 +150,7 @@ export async function analyzePage(
   note: string,
   settings: ExtensionSettings,
 ): Promise<AnalyzeResult> {
-  if (!settings.deepseekApiKey.trim()) {
+  if (!settings.apiKey.trim()) {
     throw new AppError('MISSING_API_KEY');
   }
 
@@ -211,7 +211,7 @@ export async function streamChat(
   onDelta: (fullText: string) => void,
   signal?: AbortSignal,
 ): Promise<string> {
-  if (!settings.deepseekApiKey.trim()) {
+  if (!settings.apiKey.trim()) {
     throw new AppError('MISSING_API_KEY');
   }
 
@@ -222,12 +222,12 @@ export async function streamChat(
   let response: Response;
   try {
     response = await fetch(
-      `${settings.deepseekBaseUrl.replace(/\/$/, '')}/chat/completions`,
+      `${settings.baseUrl.replace(/\/$/, '')}/chat/completions`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${settings.deepseekApiKey}`,
+          Authorization: `Bearer ${settings.apiKey}`,
         },
         body: JSON.stringify({
           model: settings.model,

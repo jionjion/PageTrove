@@ -115,31 +115,59 @@ export function ClipListView({ onChat }: Props) {
       {error && <Alert type="error" showIcon message={error} closable />}
 
       {entries.length === 0 ? (
-        <Empty description="还没有收藏，去「当前网页」收藏第一个网站吧" />
+        <Empty description="还没有收藏，点上方 ☆ 收藏当前网页吧" />
       ) : (
         entries.map((entry) => (
           <Card
             key={entry.id}
             size="small"
             hoverable
-            styles={{ body: { padding: '10px 12px' } }}
+            styles={{ body: { padding: '8px 12px' } }}
             onClick={() => void openDetail(entry.id)}
           >
-            <div className="page-title-row">
-              {entry.faviconUrl && (
-                <img className="favicon" src={entry.faviconUrl} alt="" />
-              )}
-              <Typography.Text strong ellipsis={{ tooltip: entry.title }}>
-                {entry.title}
-              </Typography.Text>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="page-title-row">
+                  {entry.faviconUrl && (
+                    <img className="favicon" src={entry.faviconUrl} alt="" />
+                  )}
+                  <Typography.Text
+                    strong
+                    title={entry.title}
+                    ellipsis={{ tooltip: entry.title }}
+                  >
+                    {entry.title}
+                  </Typography.Text>
+                </div>
+                <div>
+                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                    {entry.domain} · {entry.createdAt.slice(0, 10)}
+                  </Typography.Text>
+                </div>
+              </div>
+              <Popconfirm
+                title="删除这条收藏？"
+                okText="删除"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => void handleDelete(entry.id)}
+              >
+                <Button
+                  size="small"
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Popconfirm>
             </div>
-            <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-              {entry.domain}
-              {' · '}
-              {entry.createdAt.slice(0, 10)}
-            </Typography.Text>
+
             {entry.summary && (
-              <Typography.Paragraph style={{ margin: '4px 0 0' }}>
+              <Typography.Paragraph
+                type="secondary"
+                style={{ fontSize: 12, margin: '4px 0 0' }}
+                ellipsis={expandedId === entry.id ? false : { rows: 2 }}
+              >
                 {entry.summary}
               </Typography.Paragraph>
             )}
@@ -188,13 +216,6 @@ export function ClipListView({ onChat }: Props) {
                   >
                     打开网页
                   </Button>
-                  <Button
-                    size="small"
-                    icon={<SaveOutlined />}
-                    onClick={() => void handleSaveEdit()}
-                  >
-                    保存修改
-                  </Button>
                   {onChat && (
                     <Button
                       size="small"
@@ -204,17 +225,15 @@ export function ClipListView({ onChat }: Props) {
                       对话
                     </Button>
                   )}
-                  <Popconfirm
-                    title="确定删除这条收藏吗？"
-                    okText="删除"
-                    cancelText="取消"
-                    okButtonProps={{ danger: true }}
-                    onConfirm={() => void handleDelete(entry.id)}
+                  <Button
+                    size="small"
+                    type="primary"
+                    ghost
+                    icon={<SaveOutlined />}
+                    onClick={() => void handleSaveEdit()}
                   >
-                    <Button size="small" danger icon={<DeleteOutlined />}>
-                      删除
-                    </Button>
-                  </Popconfirm>
+                    保存修改
+                  </Button>
                 </Space>
               </div>
             )}

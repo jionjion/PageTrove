@@ -1,9 +1,12 @@
-import { Card, Input, Select, Typography } from 'antd';
+import { Button, Card, Input, Select, Typography } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import type { AnalyzeResult } from '@/types/ai';
 
 interface Props {
   value: AnalyzeResult;
   onChange: (next: AnalyzeResult) => void;
+  /** 重新执行 AI 整理 */
+  onRetry?: () => void;
 }
 
 const Label = ({ children }: { children: string }) => (
@@ -13,9 +16,20 @@ const Label = ({ children }: { children: string }) => (
 );
 
 /** AI 结果编辑器：保存前允许用户修改所有字段 */
-export function AnalyzeResultEditor({ value, onChange }: Props) {
+export function AnalyzeResultEditor({ value, onChange, onRetry }: Props) {
   return (
-    <Card size="small" title="AI 整理结果" style={{ width: '100%' }}>
+    <Card
+      size="small"
+      title="AI 整理结果"
+      style={{ width: '100%' }}
+      extra={
+        onRetry && (
+          <Button size="small" type="text" icon={<ReloadOutlined />} onClick={onRetry}>
+            重新整理
+          </Button>
+        )
+      }
+    >
       <Label>摘要</Label>
       <Input.TextArea
         autoSize={{ minRows: 3, maxRows: 6 }}

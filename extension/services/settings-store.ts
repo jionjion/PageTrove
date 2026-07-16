@@ -6,10 +6,27 @@ import {
 
 const SETTINGS_KEY = 'settings';
 
+/** 旧版本使用的字段名（迁移用） */
+interface LegacySettings {
+  deepseekApiKey?: string;
+  deepseekBaseUrl?: string;
+}
+
 export async function getSettings(): Promise<ExtensionSettings> {
   const result = await browser.storage.local.get(SETTINGS_KEY);
-  const stored = result[SETTINGS_KEY] as Partial<ExtensionSettings> | undefined;
-  return { ...DEFAULT_SETTINGS, ...stored };
+  const stored = result[SETTINGS_KEY] as
+    | (Partial<ExtensionSettings> & LegacySettings)
+    | undefined;
+
+  const merged: ExtensionSettings = { ...DEFAULT_SETTINGS, ...stored };
+  // 兼容旧版 deepseek* 字段
+  if (!stored?.apiKey && stored?.deepseekApiKey) {
+    merged.apiKey = stored.deepseekApiKey;
+  }
+  if (!stored?.baseUrl && stored?.deepseekBaseUrl) {
+    merged.baseUrl = stored.deepseekBaseUrl;
+  }
+  return merged;
 }
 
 export async function saveSettings(
