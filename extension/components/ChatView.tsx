@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Input, Typography } from 'antd';
+import { Alert, Button, Input, Select, Typography } from 'antd';
 import {
   AimOutlined,
   SendOutlined,
@@ -13,7 +13,8 @@ import { getClip } from '@/services/clip-store';
 import { streamChat, type ChatContext } from '@/services/deepseek-client';
 import { extractCurrentPage } from '@/services/page-extractor';
 import { pickPageElement } from '@/services/element-picker';
-import { getSettings } from '@/services/settings-store';
+import { getSettings, saveSettings } from '@/services/settings-store';
+import { PROVIDERS } from '@/types/settings';
 import { AppError, toErrorMessage } from '@/utils/errors';
 
 /** App 头部图标下发的指令：开启新会话 / 打开历史会话 */
@@ -42,6 +43,23 @@ export function ChatView({ command, nonce }: Props) {
   const [error, setError] = useState<string>();
   const abortRef = useRef<AbortController>();
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  /** 当前模型及所属供应商的可选模型列表 */
+  const [model, setModel] = useState<string>();
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    void getSettings().then((s) => {
+      setModel(s.model);
+      const presetModels = PROVIDERS.find((p) => p.id === s.provider)?.models ?? [];
+      setModelOptions([...new Set([s.model, ...presetModels])].filter(Boolean));
+    });
+  }, []);
+
+  const handleModelChange = (value: string) => {
+    setModel(value);
+    void saveSettings({ model: value });
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -256,7 +274,7 @@ export function ChatView({ command, nonce }: Props) {
           </div>
         )}
         {(session?.messages.length ?? 0) === 0 && streaming === undefined && (
-          <div className="chat-empty-hint">
+          <div className="empty-hint">
             <div>围绕这个网页提问吧</div>
             <div>例如："这个网站有什么值得借鉴的设计？"</div>
           </div>
@@ -295,26 +313,38 @@ export function ChatView({ command, nonce }: Props) {
             }}
           />
           <div className="chat-input-footer">
-            {busy ? (
-              <Button size="small" danger icon={<StopOutlined />} onClick={handleStop} />
-            ) : (
+            <Select
+              size="small"
+              variant="borderless"
+              title="选择模型"
+              style={{ maxWidth: 150 }}
+              popupMatchSelectWidth={false}
+              value={model}
+              onChange={handleModelChange}
+              options={modelOptions.map((m) => ({ value: m, label: m }))}
+            />
+            <div className="chat-input-actions">
+              {busy ? (
+                <Button size="small" danger icon={<StopOutlined />} onClick={handleStop} />
+              ) : (
+                <Button
+                  size="small"
+                  type="primary"
+                  title="发送"
+                  icon={<SendOutlined />}
+                  disabled={!input.trim()}
+                  onClick={() => void handleSend()}
+                />
+              )}
               <Button
                 size="small"
-                type="primary"
-                title="发送"
-                icon={<SendOutlined />}
-                disabled={!input.trim()}
-                onClick={() => void handleSend()}
+                title="选取页面元素"
+                icon={<AimOutlined />}
+                loading={picking}
+                disabled={busy}
+                onClick={() => void handlePick()}
               />
-            )}
-            <Button
-              size="small"
-              title="选取页面元素"
-              icon={<AimOutlined />}
-              loading={picking}
-              disabled={busy}
-              onClick={() => void handlePick()}
-            />
+            </div>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { Alert, Button, Card, Input, Space, Typography } from 'antd';
 import {
+  CheckOutlined,
   RobotOutlined,
   SaveOutlined,
   SettingOutlined,
@@ -152,12 +153,10 @@ export function CurrentPageView() {
 
   if (tab.unsupported) {
     return (
-      <Alert
-        type="info"
-        showIcon
-        message="当前页面是浏览器内部页面，不支持采集"
-        description="请切换到普通网页后再使用。"
-      />
+      <div className="empty-hint">
+        <div>这是浏览器内部页面，无法收藏</div>
+        <div>切换到普通网页再来吧</div>
+      </div>
     );
   }
 
@@ -182,10 +181,10 @@ export function CurrentPageView() {
         </Typography.Paragraph>
       </Card>
 
-      <Card size="small" title="为什么收藏它？">
+      <Card size="small" title="想法">
         <Input.TextArea
           rows={3}
-          placeholder="写一句备注，也会作为 AI 整理的参考…"
+          placeholder="随便写点，AI 整理时会参考…"
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
@@ -194,16 +193,20 @@ export function CurrentPageView() {
       <Button
         type="primary"
         block
-        icon={<RobotOutlined />}
-        loading={busy === 'extract' || busy === 'analyze'}
-        disabled={busy === 'save'}
-        onClick={() => void handleAnalyze()}
+        icon={saved ? <CheckOutlined /> : analysis ? <SaveOutlined /> : <RobotOutlined />}
+        loading={busy !== undefined}
+        disabled={!tab.url || saved}
+        onClick={() => void (analysis ? handleSave() : handleAnalyze())}
       >
         {busy === 'extract'
           ? '正在读取网页…'
           : busy === 'analyze'
-            ? 'AI 整理中…'
-            : '读取并整理当前网页'}
+            ? '整理中…'
+            : saved
+              ? '已收藏'
+              : analysis
+                ? '收藏'
+                : '整理'}
       </Button>
 
       {error && (
@@ -226,46 +229,41 @@ export function CurrentPageView() {
       )}
 
       {analysis && (
-        <AnalyzeResultEditor value={analysis} onChange={setAnalysis} />
-      )}
-
-      {duplicate && (
-        <Alert
-          type="warning"
-          showIcon
-          message="这个网站之前已经收藏过"
-          description={duplicate.title}
-          action={
-            <Space direction="vertical" size={4}>
-              <Button
-                size="small"
-                type="primary"
-                loading={busy === 'save'}
-                onClick={() => void handleUpdateExisting()}
-              >
-                更新原收藏
-              </Button>
-              <Button size="small" onClick={() => setDuplicate(undefined)}>
-                取消
-              </Button>
-            </Space>
-          }
+        <AnalyzeResultEditor
+          value={analysis}
+          onChange={setAnalysis}
+          onRetry={() => void handleAnalyze()}
         />
       )}
 
-      {saved && <Alert type="success" showIcon message="已保存到藏宝库" />}
-
-      <Button
-        block
-        type="primary"
-        ghost
-        icon={<SaveOutlined />}
-        loading={busy === 'save'}
-        disabled={busy === 'extract' || busy === 'analyze' || !tab.url || saved}
-        onClick={() => void handleSave()}
-      >
-        保存到藏宝库
-      </Button>
+      {duplicate && (
+        <Card size="small">
+          <Typography.Text strong style={{ display: 'block' }}>
+            这个网页已经收藏过
+          </Typography.Text>
+          <Typography.Text
+            type="secondary"
+            style={{ fontSize: 12, display: 'block', marginTop: 2 }}
+            ellipsis={{ tooltip: duplicate.title }}
+          >
+            {duplicate.title}
+          </Typography.Text>
+          <Space style={{ marginTop: 10 }}>
+            <Button
+              size="small"
+              type="primary"
+              ghost
+              loading={busy === 'save'}
+              onClick={() => void handleUpdateExisting()}
+            >
+              更新原收藏
+            </Button>
+            <Button size="small" onClick={() => setDuplicate(undefined)}>
+              取消
+            </Button>
+          </Space>
+        </Card>
+      )}
     </Space>
   );
 }

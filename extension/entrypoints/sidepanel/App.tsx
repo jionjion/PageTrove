@@ -5,8 +5,8 @@ import {
   FolderOpenOutlined,
   HistoryOutlined,
   PlusOutlined,
-  PushpinOutlined,
   SettingOutlined,
+  StarOutlined,
 } from '@ant-design/icons';
 import { CurrentPageView } from '@/components/CurrentPageView';
 import { ClipListView } from '@/components/ClipListView';
@@ -58,7 +58,7 @@ export default function App() {
             type="text"
             title="收藏当前网页"
             style={iconStyle('current')}
-            icon={<PushpinOutlined />}
+            icon={<StarOutlined />}
             onClick={() => toggleView('current')}
           />
           <Button

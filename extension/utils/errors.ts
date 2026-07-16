@@ -14,8 +14,8 @@ export type ErrorCode =
 const MESSAGES: Record<ErrorCode, string> = {
   UNSUPPORTED_PAGE: '浏览器内部页面不支持采集，请在普通网页中使用',
   PAGE_EXTRACT_FAILED: '网页内容读取失败，请刷新页面后重试',
-  EMPTY_CONTENT: '未能提取到页面内容，可以手动填写备注后保存',
-  MISSING_API_KEY: '尚未配置 DeepSeek API Key，请先前往设置页填写',
+  EMPTY_CONTENT: '未能提取到页面内容，请刷新页面后重试',
+  MISSING_API_KEY: '尚未配置 API Key，请先前往设置页选择供应商并填写',
   NETWORK_ERROR: '网络请求失败，请检查网络后重试',
   AI_UNAUTHORIZED: 'API Key 无效或额度不足，请检查设置',
   AI_ANALYZE_FAILED: 'AI 分析失败，请稍后重试',
