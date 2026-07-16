@@ -3,7 +3,16 @@
 > 网站藏宝库浏览器插件：产品与技术实现方案
 >
 > 面向 Claude Code 的项目实现说明  
-> 目标：开发一个浏览器侧边栏插件，在浏览网页时快速读取当前页面、使用 AI 自动整理，并保存到个人“网站藏宝库”。
+> 目标：开发一个浏览器侧边栏插件，以“围绕网页的 AI 对话”为主视图，支持快速读取当前页面、使用 AI 自动整理，并保存到个人“网站藏宝库”。
+
+## 当前状态（2026-07）
+
+- V0 / V1 / V2 均已完成：本地收藏、AI 整理（摘要 + 标签）、网页对话（流式 + Markdown 渲染）
+- 对话为主视图；头部图标依次为：新对话、历史对话、收藏当前网页（☆）、我的收藏、设置
+- AI 已泛化为多供应商（OpenAI 兼容接口）：DeepSeek、Kimi、智谱 GLM、通义千问、OpenAI、自定义
+- AI 结果已简化：只保留摘要（≤100 汉字）和标签（3~5 个），移除“好玩的地方 / 值得借鉴 / 分类”
+- 附加能力：页面元素选取（类 F12 拾取器）、对话输入框内切换模型、历史对话标题搜索
+- V3（语义搜索 / 推荐 / 专题）暂缓
 
 ---
 
@@ -16,14 +25,11 @@
 1. 读取当前网页的基础信息。
 2. 提取用户选中的文字和网页主要正文。
 3. 让用户填写“为什么收藏这个网站”。
-4. 调用 DeepSeek 模型接口，自动生成：
-   - 一句话介绍
-   - 好玩的地方
-   - 值得借鉴的设计或功能
-   - 标签
-   - 分类
+4. 调用 AI 模型接口（OpenAI 兼容，多供应商可选），自动生成：
+   - 摘要（让用户快速了解这个收藏）
+   - 标签（最多 5 个）
 5. 用户确认后保存到个人收藏库（浏览器本地存储）。
-6. 后续支持查询、编辑、删除、搜索和针对网页继续提问。
+6. 支持查询、编辑、删除、搜索和针对网页继续提问（已实现）。
 
 核心体验应尽量简单：
 
@@ -55,12 +61,9 @@
 ```text
 标题
 网址
-网站介绍
-为什么有趣
-值得借鉴的内容
+AI 摘要
 用户备注
 标签
-分类
 正文快照
 用户选中的文字
 ```
@@ -117,22 +120,20 @@ browser.storage.local
 
 ### 3.3 AI 接入
 
-接入 **DeepSeek** 模型（OpenAI 兼容接口，成本低）：
+统一走 **OpenAI 兼容接口**（`POST /chat/completions`），内置多个供应商预设，设置页先选供应商再填 Key：
 
 ```text
-Base URL：https://api.deepseek.com
-模型：deepseek-chat
-接口：POST /chat/completions（OpenAI 兼容）
+DeepSeek（默认）  https://api.deepseek.com          deepseek-chat / deepseek-reasoner
+Kimi（月之暗面）  https://api.moonshot.cn/v1        kimi-latest / moonshot-v1-*
+智谱 GLM          https://open.bigmodel.cn/api/paas/v4   glm-4-flash / glm-4-air / glm-4-plus
+通义千问          https://dashscope.aliyuncs.com/compatible-mode/v1   qwen-plus / qwen-turbo / qwen-max
+OpenAI            https://api.openai.com/v1         gpt-4o-mini / gpt-4o
+自定义            任意 OpenAI 兼容地址
 ```
 
-由于没有后端，AI 调用直接从插件发起：
+由于没有后端，AI 调用直接从插件（Side Panel）发起。
 
-```text
-插件（Background / Side Panel）
-→ https://api.deepseek.com/chat/completions
-```
-
-API Key 由用户在插件“设置”页自行填写，保存在 `browser.storage.local`，仅在本机使用。
+API Key 由用户在插件“设置”页自行填写，保存在 `browser.storage.local`，仅在本机使用；各家 Key 不通用，切换供应商后需重新填写。
 
 ### 3.4 第一版不建议引入
 
@@ -205,26 +206,18 @@ API Key 由用户在插件“设置”页自行填写，保存在 `browser.stora
 
 ```text
 1. 用户打开一个网页
-2. 点击浏览器插件图标
-3. 浏览器右侧打开 Side Panel
-4. 插件自动显示：
+2. 点击浏览器插件图标，右侧打开 Side Panel（默认进入对话视图）
+3. 点击头部 ☆ 进入“收藏当前网页”视图，自动显示：
    - 页面标题
    - 域名
    - 网站图标
    - 当前网址
-5. 用户可填写备注
-6. 用户点击“读取并整理当前网页”
-7. 插件读取：
-   - 页面标题
-   - 页面描述
-   - canonical URL
-   - 当前选中文字
-   - 主要正文
-8. 插件调用 DeepSeek 接口分析
-9. AI 返回结构化整理结果
-10. 用户可修改结果
-11. 用户点击“保存到藏宝库”
-12. 插件完成去重并写入 browser.storage.local
+4. 用户可填写收藏理由（可选）
+5. 点击“整理”：插件读取标题、描述、canonical URL、选中文字、主要正文，
+   调用 AI 生成摘要和标签
+6. 用户可修改结果，或点击“重新整理”
+7. 同一按钮变为“收藏”，点击后完成去重并写入 browser.storage.local
+8. 已收藏过的网页给出“更新原收藏”选项
 ```
 
 ### 5.2 查询收藏
@@ -232,11 +225,8 @@ API Key 由用户在插件“设置”页自行填写，保存在 `browser.stora
 ```text
 1. 用户进入“我的收藏”
 2. 支持按以下条件查询（在本地数据中过滤）：
-   - 关键词
-   - 标签
-   - 分类
-   - 域名
-   - 收藏时间
+   - 关键词（标题 / 域名 / 摘要 / 标签）
+   - 标签筛选
 3. 点击收藏项查看详情
 4. 支持打开原网页
 5. 支持修改或删除
@@ -244,7 +234,7 @@ API Key 由用户在插件“设置”页自行填写，保存在 `browser.stora
 
 ### 5.3 针对网页继续提问
 
-后续版本支持（对话记录同样保存在 `browser.storage.local`）：
+已实现（对话记录保存在 `browser.storage.local`，支持流式回复、Markdown 渲染、页面元素选取和对话内切换模型）：
 
 ```text
 这个网站为什么让人上瘾？
@@ -257,128 +247,74 @@ API Key 由用户在插件“设置”页自行填写，保存在 `browser.stora
 
 ## 6. 插件页面设计
 
-第一版只做三个页面。
+侧边栏以对话为主视图，其余功能通过头部图标切换（各视图保持挂载、切换显示以保留状态）；设置为独立 Options 页。
 
-### 6.1 当前网页
+头部图标（自左向右）：＋ 新对话、历史对话、☆ 收藏当前网页、我的收藏、设置。
 
-功能：
+### 6.1 对话（主视图）
 
-- 显示当前网页标题
-- 显示域名和 favicon
-- 显示当前网址
-- 填写用户备注
-- 读取并整理当前网页
-- 编辑 AI 结果
-- 保存收藏
+- 围绕当前网页或某条收藏提问，流式回复，气泡支持 Markdown（GFM）
+- 会话上下文在首条消息时固化（页面快照或收藏内容）
+- 输入卡片：上方输入域（Enter 发送 / Shift+Enter 换行），卡片脚左下角为模型选择（当前供应商的可选模型），右下角为发送 / 停止、选取页面元素按钮
+- 元素选取：类 F12 拾取器，悬停高亮页面元素，点击选取，文本（≤3000 字）随下一条消息发送
 
-建议布局：
+### 6.2 历史对话
 
-```text
-┌──────────────────────────┐
-│ 网站藏宝库                │
-├──────────────────────────┤
-│ 当前网页                  │
-│ [favicon] 网站标题        │
-│ example.com               │
-│                          │
-│ 为什么收藏它？            │
-│ ┌──────────────────────┐ │
-│ │ 用户备注              │ │
-│ └──────────────────────┘ │
-│                          │
-│ [读取并整理当前网页]       │
-├──────────────────────────┤
-│ 一句话介绍                │
-│ ...                      │
-│                          │
-│ 好玩的地方                │
-│ · ...                    │
-│ · ...                    │
-│                          │
-│ 值得借鉴                  │
-│ · ...                    │
-│ · ...                    │
-│                          │
-│ 标签                      │
-│ [小游戏] [创意] [摸鱼]    │
-│                          │
-│ [保存到藏宝库]            │
-└──────────────────────────┘
-```
+- 会话列表：标题、类型（网页对话 / 收藏对话）、消息数、更新时间
+- 标题搜索、删除、点击打开继续对话
 
-### 6.2 我的收藏
+### 6.3 收藏当前网页
 
-功能：
+- 显示当前网页标题、域名、favicon、网址
+- 填写收藏理由（可选，作为 AI 整理参考）
+- 单按钮流程：整理 → 收藏 → 已收藏；结果卡片支持“重新整理”
+- AI 结果（摘要 + 标签）可编辑；重复收藏时提示“更新原收藏”
 
-- 收藏列表
-- 关键词搜索
-- 标签筛选
-- 分类筛选
-- 域名筛选
-- 时间排序
-- 打开原网页
-- 编辑收藏
-- 删除收藏
-- 导出 / 导入 JSON（本地数据备份）
+### 6.4 我的收藏
 
-### 6.3 设置
+- 收藏列表：favicon、标题、域名、日期、摘要（折叠两行）、标签
+- 关键词搜索 + 标签筛选
+- 展开卡片：编辑备注和标签、打开网页、发起对话、删除
 
-功能：
+### 6.5 设置（Options 页）
 
-- DeepSeek API Key
-- 模型名称（默认 deepseek-chat）
-- 是否默认读取正文
-- 最大正文长度
-- 是否允许附加选中文字
-- 隐私说明
-- 清理本地缓存
-- 导出 / 导入收藏数据
+- AI 模型：供应商 → API Key → 模型 → Base URL（选择供应商后自动填好 Base URL 和默认模型，Key 需重新填写）
+- 网页采集：是否包含选中文字；隐私说明
+- 数据管理：导出 / 导入收藏 JSON
 
 ---
 
 ## 7. 插件工程结构
 
-建议目录：
+当前目录（工程位于仓库根目录）：
 
 ```text
-page-trove-extension/
+PageTrove/
 ├─ entrypoints/
 │  ├─ background.ts
-│  ├─ sidepanel/
-│  │  ├─ index.html
-│  │  ├─ main.tsx
-│  │  ├─ App.tsx
-│  │  └─ style.css
-│  └─ options/
-│     ├─ index.html
-│     ├─ main.tsx
-│     └─ App.tsx
+│  ├─ sidepanel/             # index.html / main.tsx / App.tsx / style.css
+│  └─ options/               # index.html / main.tsx / App.tsx
 ├─ components/
-│  ├─ CurrentPageCard.tsx
-│  ├─ AnalyzeResultEditor.tsx
-│  ├─ TagEditor.tsx
-│  ├─ ClipList.tsx
-│  ├─ Loading.tsx
-│  └─ ErrorMessage.tsx
+│  ├─ ChatView.tsx           # 对话主视图
+│  ├─ ChatHistoryView.tsx    # 历史对话
+│  ├─ CurrentPageView.tsx    # 收藏当前网页
+│  ├─ ClipListView.tsx       # 我的收藏
+│  └─ AnalyzeResultEditor.tsx
 ├─ hooks/
-│  ├─ useCurrentTab.ts
-│  ├─ useAnalyzePage.ts
-│  ├─ useClips.ts
-│  └─ useExtensionSettings.ts
+│  └─ useCurrentTab.ts
 ├─ services/
-│  ├─ page-extractor.ts
-│  ├─ deepseek-client.ts
-│  ├─ clip-store.ts
-│  ├─ storage.ts
+│  ├─ page-extractor.ts      # 网页采集
+│  ├─ element-picker.ts      # 页面元素选取
+│  ├─ deepseek-client.ts     # AI 客户端（整理 + 流式对话，OpenAI 兼容）
+│  ├─ clip-store.ts          # 收藏存储
+│  ├─ chat-store.ts          # 对话存储
+│  ├─ settings-store.ts      # 设置存储（含旧字段迁移）
 │  └─ url-utils.ts
-├─ types/
-│  ├─ page-snapshot.ts
-│  ├─ clip.ts
-│  ├─ chat.ts
-│  └─ ai.ts
+├─ types/                    # page-snapshot / clip / chat / ai / settings
 ├─ utils/
-│  ├─ errors.ts
-│  └─ text.ts
+│  └─ errors.ts
+├─ public/icon/              # 16 / 32 / 48 / 96 / 128
+├─ scripts/resize-icon.ps1   # 图标裁剪缩放脚本
 ├─ wxt.config.ts
 ├─ package.json
 └─ tsconfig.json
@@ -388,7 +324,7 @@ page-trove-extension/
 
 ## 8. 插件权限
 
-建议第一版权限：
+当前权限配置：
 
 ```ts
 import { defineConfig } from 'wxt';
@@ -397,7 +333,7 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
 
   manifest: {
-    name: '网站藏宝库',
+    name: '拾页',
     description: '记录、整理和回顾有趣的网站',
     version: '0.1.0',
 
@@ -431,7 +367,7 @@ export default defineConfig({
 | `tabs`                        | 获取当前标签页标题、URL、favicon     |
 | `sidePanel`                   | 使用 Chrome Side Panel API           |
 | `<all_urls>`                  | 在任意网页注入采集脚本（见下方说明） |
-| `https://api.deepseek.com/*`  | 从插件直接调用 DeepSeek 接口         |
+| `https://api.deepseek.com/*`  | 调用 DeepSeek 接口（其余供应商由 `<all_urls>` 覆盖） |
 
 关于 `<all_urls>`：`activeTab` 只在"点击扩展图标那一刻"授予当前标签页权限，侧边栏常驻打开后，用户切换标签或跳转页面，再点击面板内的"读取并整理"按钮时（不算 activeTab 手势），脚本注入会被浏览器拒绝。因此剪藏类插件需要在安装时申请 `<all_urls>`。插件承诺只在用户主动点击时才注入采集脚本。
 
@@ -731,22 +667,18 @@ export interface WebClip {
   faviconUrl?: string;
 
   summary?: string;
-  interestingPoints: string[];
-  inspiration: string[];
   tags: string[];
-  category?: string;
 
   userNote?: string;
   selectedText?: string;
-  extractedText?: string;     // 正文快照，可按设置截断
+  extractedText?: string;     // 正文快照，按固定长度截断
 
-  contentHash?: string;
   createdAt: string;          // ISO 时间
   updatedAt: string;
 }
 ```
 
-### 13.2 对话记录 ChatSession（后续版本）
+### 13.2 对话记录 ChatSession（已实现）
 
 ```ts
 export interface ChatMessage {
@@ -755,9 +687,17 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+/** 针对“当前网页”发起对话时固化的页面上下文 */
+export interface ChatPageContext {
+  title: string;
+  url: string;
+  content: string;
+}
+
 export interface ChatSession {
   id: string;                 // uuid
-  clipId?: string;            // 关联的收藏；为空表示针对当前页面
+  clipId?: string;            // 关联的收藏；与 page 二选一
+  page?: ChatPageContext;     // 当前网页对话的页面快照
   title: string;
   messages: ChatMessage[];
   createdAt: string;
@@ -794,8 +734,7 @@ chat:{id}             单个对话完整数据
 - 标题模糊搜索
 - 域名搜索
 - 标签筛选
-- 分类筛选
-- 用户备注搜索
+- 摘要搜索
 - 时间排序
 
 暂时不需要向量数据库。
@@ -1409,12 +1348,16 @@ export type ErrorCode =
 
 ## 28. 推荐仓库结构
 
+WXT 插件工程直接放在仓库根目录：
+
 ```text
 PageTrove/
-├─ docs/
-│  └─ implementation-plan.md
-├─ extension/
-│  └─ WXT 插件工程
+├─ entrypoints/
+├─ components/
+├─ services/
+├─ types/
+├─ wxt.config.ts
+├─ package.json
 ├─ .gitignore
 └─ README.md
 ```
