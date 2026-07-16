@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
+import { Alert, Button, Card, Input, Space, Typography } from 'antd';
+import {
+  RobotOutlined,
+  SaveOutlined,
+  SettingOutlined,
+} from '@ant-design/icons';
 import type { AnalyzeResult } from '@/types/ai';
 import type { ClipIndexEntry, WebClip } from '@/types/clip';
 import type { PageSnapshot } from '@/types/page-snapshot';
@@ -152,46 +158,51 @@ export function CurrentPageView() {
 
   if (tab.unsupported) {
     return (
-      <div className="empty-state">
-        <p>当前页面是浏览器内部页面，不支持采集。</p>
-        <p>请切换到普通网页后再使用。</p>
-      </div>
+      <Alert
+        type="info"
+        showIcon
+        message="当前页面是浏览器内部页面，不支持采集"
+        description="请切换到普通网页后再使用。"
+      />
     );
   }
 
   return (
-    <div className="current-page">
-      <section className="card page-card">
+    <Space direction="vertical" size={10} style={{ display: 'flex' }}>
+      <Card size="small">
         <div className="page-title-row">
           {tab.favIconUrl && (
             <img className="favicon" src={tab.favIconUrl} alt="" />
           )}
-          <span className="page-title" title={tab.title}>
+          <Typography.Text strong ellipsis={{ tooltip: tab.title }}>
             {tab.title || '（无标题）'}
-          </span>
+          </Typography.Text>
         </div>
-        <div className="page-domain">{tab.domain}</div>
-        <div className="page-url" title={tab.url}>
+        <Typography.Text type="secondary">{tab.domain}</Typography.Text>
+        <Typography.Paragraph
+          type="secondary"
+          style={{ fontSize: 11, margin: 0 }}
+          ellipsis={{ tooltip: tab.url }}
+        >
           {tab.url}
-        </div>
-      </section>
+        </Typography.Paragraph>
+      </Card>
 
-      <section className="card">
-        <label className="field-label" htmlFor="note">
-          为什么收藏它？
-        </label>
-        <textarea
-          id="note"
+      <Card size="small" title="为什么收藏它？">
+        <Input.TextArea
           rows={3}
           placeholder="写一句备注，也会作为 AI 整理的参考…"
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
-      </section>
+      </Card>
 
-      <button
-        className="btn primary"
-        disabled={busy !== undefined}
+      <Button
+        type="primary"
+        block
+        icon={<RobotOutlined />}
+        loading={busy === 'extract' || busy === 'analyze'}
+        disabled={busy === 'save'}
         onClick={() => void handleAnalyze()}
       >
         {busy === 'extract'
@@ -199,20 +210,25 @@ export function CurrentPageView() {
           : busy === 'analyze'
             ? 'AI 整理中…'
             : '读取并整理当前网页'}
-      </button>
+      </Button>
 
       {error && (
-        <div className="message error">
-          {error}
-          {missingKey && (
-            <button
-              className="btn link"
-              onClick={() => void browser.runtime.openOptionsPage()}
-            >
-              前往设置
-            </button>
-          )}
-        </div>
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          action={
+            missingKey && (
+              <Button
+                size="small"
+                icon={<SettingOutlined />}
+                onClick={() => void browser.runtime.openOptionsPage()}
+              >
+                前往设置
+              </Button>
+            )
+          }
+        />
       )}
 
       {analysis && (
@@ -220,32 +236,42 @@ export function CurrentPageView() {
       )}
 
       {duplicate && (
-        <div className="message warning">
-          <p>这个网站之前已经收藏过：{duplicate.title}</p>
-          <div className="btn-row">
-            <button
-              className="btn"
-              disabled={busy !== undefined}
-              onClick={() => void handleUpdateExisting()}
-            >
-              更新原收藏
-            </button>
-            <button className="btn" onClick={() => setDuplicate(undefined)}>
-              取消
-            </button>
-          </div>
-        </div>
+        <Alert
+          type="warning"
+          showIcon
+          message="这个网站之前已经收藏过"
+          description={duplicate.title}
+          action={
+            <Space direction="vertical" size={4}>
+              <Button
+                size="small"
+                type="primary"
+                loading={busy === 'save'}
+                onClick={() => void handleUpdateExisting()}
+              >
+                更新原收藏
+              </Button>
+              <Button size="small" onClick={() => setDuplicate(undefined)}>
+                取消
+              </Button>
+            </Space>
+          }
+        />
       )}
 
-      {saved && <div className="message success">已保存到藏宝库 ✓</div>}
+      {saved && <Alert type="success" showIcon message="已保存到藏宝库" />}
 
-      <button
-        className="btn primary save-btn"
-        disabled={busy !== undefined || !tab.url || saved}
+      <Button
+        block
+        type="primary"
+        ghost
+        icon={<SaveOutlined />}
+        loading={busy === 'save'}
+        disabled={busy === 'extract' || busy === 'analyze' || !tab.url || saved}
         onClick={() => void handleSave()}
       >
-        {busy === 'save' ? '保存中…' : '保存到藏宝库'}
-      </button>
-    </div>
+        保存到藏宝库
+      </Button>
+    </Space>
   );
 }
