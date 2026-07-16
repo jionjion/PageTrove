@@ -1,58 +1,98 @@
 import { useState } from 'react';
 import { browser } from 'wxt/browser';
-import { Button, Tabs, Typography } from 'antd';
-import { SettingOutlined } from '@ant-design/icons';
+import { Button, Typography } from 'antd';
+import {
+  FolderOpenOutlined,
+  HistoryOutlined,
+  PlusOutlined,
+  PushpinOutlined,
+  SettingOutlined,
+} from '@ant-design/icons';
 import { CurrentPageView } from '@/components/CurrentPageView';
 import { ClipListView } from '@/components/ClipListView';
-import { ChatView } from '@/components/ChatView';
+import { ChatView, type ChatCommand } from '@/components/ChatView';
+import { ChatHistoryView } from '@/components/ChatHistoryView';
+
+type View = 'chat' | 'history' | 'current' | 'clips';
 
 export default function App() {
-  const [tab, setTab] = useState('current');
-  const [chatClipId, setChatClipId] = useState<string>();
+  const [view, setView] = useState<View>('chat');
+  const [chatCommand, setChatCommand] = useState<ChatCommand>();
   const [chatNonce, setChatNonce] = useState(0);
 
-  const openChatForClip = (clipId: string) => {
-    setChatClipId(clipId);
+  const dispatchChat = (command: ChatCommand) => {
+    setChatCommand(command);
     setChatNonce((n) => n + 1);
-    setTab('chat');
+    setView('chat');
   };
+
+  /** 点击图标切换视图；再点一次已激活的图标则回到对话 */
+  const toggleView = (target: View) => {
+    setView((v) => (v === target ? 'chat' : target));
+  };
+
+  const iconStyle = (target: View) =>
+    view === target ? { color: '#1677ff' } : undefined;
 
   return (
     <div className="app">
       <header className="app-header">
         <Typography.Title level={5} style={{ margin: 0 }}>
-          拾页 PageTrove
+          拾页
         </Typography.Title>
-        <Button
-          type="text"
-          title="设置"
-          icon={<SettingOutlined />}
-          onClick={() => void browser.runtime.openOptionsPage()}
-        />
+        <div className="app-header-actions">
+          <Button
+            type="text"
+            title="新对话（针对当前网页）"
+            icon={<PlusOutlined />}
+            onClick={() => dispatchChat({ kind: 'new' })}
+          />
+          <Button
+            type="text"
+            title="历史对话"
+            style={iconStyle('history')}
+            icon={<HistoryOutlined />}
+            onClick={() => toggleView('history')}
+          />
+          <Button
+            type="text"
+            title="收藏当前网页"
+            style={iconStyle('current')}
+            icon={<PushpinOutlined />}
+            onClick={() => toggleView('current')}
+          />
+          <Button
+            type="text"
+            title="我的收藏"
+            style={iconStyle('clips')}
+            icon={<FolderOpenOutlined />}
+            onClick={() => toggleView('clips')}
+          />
+          <Button
+            type="text"
+            title="设置"
+            icon={<SettingOutlined />}
+            onClick={() => void browser.runtime.openOptionsPage()}
+          />
+        </div>
       </header>
 
-      <Tabs
-        activeKey={tab}
-        onChange={setTab}
-        centered
-        size="small"
-        className="app-tabs"
-        items={[
-          { key: 'current', label: '当前网页', children: <CurrentPageView /> },
-          {
-            key: 'clips',
-            label: '我的收藏',
-            children: <ClipListView onChat={openChatForClip} />,
-          },
-          {
-            key: 'chat',
-            label: '对话',
-            children: (
-              <ChatView pendingClipId={chatClipId} pendingNonce={chatNonce} />
-            ),
-          },
-        ]}
-      />
+      {/* 各视图保持挂载以保留状态，仅切换显示 */}
+      <div className="app-body" style={view === 'chat' ? undefined : { display: 'none' }}>
+        <ChatView command={chatCommand} nonce={chatNonce} />
+      </div>
+      <div className="app-body" style={view === 'history' ? undefined : { display: 'none' }}>
+        <ChatHistoryView
+          active={view === 'history'}
+          onOpen={(sessionId) => dispatchChat({ kind: 'open', sessionId })}
+        />
+      </div>
+      <div className="app-body" style={view === 'current' ? undefined : { display: 'none' }}>
+        <CurrentPageView />
+      </div>
+      <div className="app-body" style={view === 'clips' ? undefined : { display: 'none' }}>
+        <ClipListView onChat={(clipId) => dispatchChat({ kind: 'new', clipId })} />
+      </div>
     </div>
   );
 }

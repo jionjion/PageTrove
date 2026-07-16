@@ -11,10 +11,7 @@ export interface WebClip {
   faviconUrl?: string;
 
   summary?: string;
-  interestingPoints: string[];
-  inspiration: string[];
   tags: string[];
-  category?: string;
 
   userNote?: string;
   selectedText?: string;
@@ -34,14 +31,12 @@ export interface ClipIndexEntry {
   faviconUrl?: string;
   summary?: string;
   tags: string[];
-  category?: string;
   createdAt: string;
 }
 
 export interface ClipQuery {
   keyword?: string;
   tag?: string;
-  category?: string;
   domain?: string;
   sort?: 'createdAt_desc' | 'createdAt_asc';
 }

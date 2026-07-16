@@ -11,20 +11,15 @@ const SYSTEM_PROMPT = `你是一个"有趣网站收藏整理助手"。
 
 1. 只能依据输入内容，不得虚构网页功能。
 2. 如果网页信息不足，应明确体现"信息不足"。
-3. 一句话介绍不超过50个汉字。
-4. 标签输出3至6个。
-5. "好玩的地方"关注用户为什么值得收藏。
-6. "值得借鉴"关注产品、交互、视觉、内容和创意。
-7. 不要复述大段网页原文。
-8. 不要输出Markdown。
-9. 只输出符合下面结构的 json，不要输出其他内容：
+3. 摘要用于让用户快速了解这个收藏：说明网站是什么、有什么内容、为什么值得收藏，控制在100个汉字以内。
+4. 标签输出3至5个。
+5. 不要复述大段网页原文。
+6. 不要输出Markdown。
+7. 只输出符合下面结构的 json，不要输出其他内容：
 
 {
-  "summary": "一句话介绍",
-  "interestingPoints": ["好玩的地方1", "好玩的地方2"],
-  "inspiration": ["值得借鉴的设计或功能1", "值得借鉴的设计或功能2"],
+  "summary": "摘要",
   "tags": ["标签1", "标签2", "标签3"],
-  "category": "网站分类",
   "confidence": 0.85
 }
 
@@ -53,12 +48,9 @@ ${note || '（无）'}`;
 }
 
 const LIMITS = {
-  summary: 100,
-  listItem: 200,
-  listMax: 5,
-  tagMax: 6,
+  summary: 200,
+  tagMax: 5,
   tagLength: 20,
-  category: 50,
 };
 
 function cleanStringArray(value: unknown, maxItems: number, maxLength: number): string[] {
@@ -94,13 +86,7 @@ function validateAnalyzeResult(raw: unknown): AnalyzeResult {
 
   return {
     summary,
-    interestingPoints: cleanStringArray(data.interestingPoints, LIMITS.listMax, LIMITS.listItem),
-    inspiration: cleanStringArray(data.inspiration, LIMITS.listMax, LIMITS.listItem),
     tags,
-    category:
-      typeof data.category === 'string'
-        ? data.category.trim().slice(0, LIMITS.category)
-        : '未分类',
     confidence,
   };
 }

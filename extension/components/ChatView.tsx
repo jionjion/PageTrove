@@ -1,96 +1,97 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Button, Input, Typography } from 'antd';
 import {
-  Alert,
-  Button,
-  Card,
-  Empty,
-  Input,
-  Popconfirm,
-  Select,
-  Space,
-  Typography,
-} from 'antd';
-import {
-  ArrowLeftOutlined,
-  DeleteOutlined,
-  PlusOutlined,
+  AimOutlined,
   SendOutlined,
   StopOutlined,
 } from '@ant-design/icons';
-import type { ChatIndexEntry, ChatSession } from '@/types/chat';
-import type { ClipIndexEntry } from '@/types/clip';
-import { getChat, getChatIndex, removeChat, saveChat } from '@/services/chat-store';
-import { getClip, queryClips } from '@/services/clip-store';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { ChatSession } from '@/types/chat';
+import { getChat, saveChat } from '@/services/chat-store';
+import { getClip } from '@/services/clip-store';
 import { streamChat, type ChatContext } from '@/services/deepseek-client';
 import { extractCurrentPage } from '@/services/page-extractor';
+import { pickPageElement } from '@/services/element-picker';
 import { getSettings } from '@/services/settings-store';
 import { AppError, toErrorMessage } from '@/utils/errors';
 
-const CURRENT_PAGE = '__current__';
+/** App 头部图标下发的指令：开启新会话 / 打开历史会话 */
+export type ChatCommand =
+  | { kind: 'new'; clipId?: string }
+  | { kind: 'open'; sessionId: string };
 
 interface Props {
-  /** 从收藏详情点"对话"进入时的目标收藏；nonce 变化时强制开启新会话 */
-  pendingClipId?: string;
-  pendingNonce: number;
+  command?: ChatCommand;
+  /** nonce 变化时执行 command */
+  nonce: number;
 }
 
-export function ChatView({ pendingClipId, pendingNonce }: Props) {
-  const [view, setView] = useState<'list' | 'session'>('list');
-  const [sessions, setSessions] = useState<ChatIndexEntry[]>([]);
-  const [clips, setClips] = useState<ClipIndexEntry[]>([]);
-  const [target, setTarget] = useState<string>(CURRENT_PAGE);
-
+export function ChatView({ command, nonce }: Props) {
   const [session, setSession] = useState<ChatSession>();
   /** 新会话尚未发送第一条消息时的目标收藏 id（undefined 表示当前网页） */
   const [draftClipId, setDraftClipId] = useState<string>();
+  const [contextTitle, setContextTitle] = useState('当前网页');
 
   const [input, setInput] = useState('');
+  /** 通过"选取元素"从页面拾取的文本，随下一条消息一起发送 */
+  const [picked, setPicked] = useState<string>();
+  const [picking, setPicking] = useState(false);
   const [streaming, setStreaming] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const abortRef = useRef<AbortController>();
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const refreshList = useCallback(async () => {
-    setSessions(await getChatIndex());
-    setClips(await queryClips({}));
-  }, []);
-
-  useEffect(() => {
-    void refreshList();
-  }, [refreshList, view]);
-
-  // 从收藏详情跳转进来：直接开启针对该收藏的新会话
-  useEffect(() => {
-    if (pendingNonce > 0 && pendingClipId) {
-      startNewSession(pendingClipId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingNonce]);
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [session?.messages.length, streaming]);
 
-  const startNewSession = (clipId?: string) => {
+  const resetState = () => {
     abortRef.current?.abort();
     setSession(undefined);
-    setDraftClipId(clipId);
+    setDraftClipId(undefined);
     setError(undefined);
     setStreaming(undefined);
     setInput('');
-    setView('session');
+    setPicked(undefined);
+  };
+
+  const startNewSession = async (clipId?: string) => {
+    resetState();
+    setDraftClipId(clipId);
+    if (clipId) {
+      const clip = await getClip(clipId);
+      setContextTitle(clip?.title ?? '关联收藏');
+    } else {
+      setContextTitle('当前网页');
+    }
   };
 
   const openSession = async (id: string) => {
     const loaded = await getChat(id);
     if (!loaded) return;
+    resetState();
     setSession(loaded);
-    setDraftClipId(undefined);
-    setError(undefined);
-    setStreaming(undefined);
-    setView('session');
+    if (loaded.page) {
+      setContextTitle(loaded.page.title);
+    } else if (loaded.clipId) {
+      const clip = await getClip(loaded.clipId);
+      setContextTitle(clip?.title ?? '关联收藏（已删除）');
+    }
   };
+
+  // 头部图标指令：新对话 / 打开历史对话
+  useEffect(() => {
+    if (nonce > 0 && command) {
+      if (command.kind === 'new') {
+        void startNewSession(command.clipId);
+      } else {
+        void openSession(command.sessionId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nonce]);
 
   const resolveContext = async (s: {
     clipId?: string;
@@ -117,9 +118,15 @@ export function ChatView({ pendingClipId, pendingNonce }: Props) {
     const question = input.trim();
     if (!question || busy) return;
 
+    // 携带选取的页面片段一起提问
+    const content = picked
+      ? `【页面选取内容】\n${picked}\n\n${question}`
+      : question;
+
     setError(undefined);
     setBusy(true);
     setInput('');
+    setPicked(undefined);
 
     try {
       const settings = await getSettings();
@@ -141,6 +148,7 @@ export function ChatView({ pendingClipId, pendingNonce }: Props) {
               .filter(Boolean)
               .join('\n'),
           };
+          setContextTitle(snapshot.title);
         }
         current = {
           id: crypto.randomUUID(),
@@ -157,7 +165,7 @@ export function ChatView({ pendingClipId, pendingNonce }: Props) {
         ...current,
         messages: [
           ...current.messages,
-          { role: 'user', content: question, createdAt: now },
+          { role: 'user', content, createdAt: now },
         ],
         updatedAt: now,
       };
@@ -202,154 +210,113 @@ export function ChatView({ pendingClipId, pendingNonce }: Props) {
     abortRef.current?.abort();
   };
 
-  const handleDelete = async (id: string) => {
-    await removeChat(id);
-    await refreshList();
+  const handlePick = async () => {
+    if (picking || busy) return;
+    setError(undefined);
+    setPicking(true);
+    try {
+      const text = await pickPageElement(3000);
+      if (text) setPicked(text);
+    } catch (e) {
+      setError(toErrorMessage(e));
+    } finally {
+      setPicking(false);
+    }
   };
-
-  /* ---------------------------- 会话列表 ---------------------------- */
-
-  if (view === 'list') {
-    return (
-      <Space direction="vertical" size={10} style={{ display: 'flex' }}>
-        <Card size="small" title="发起新对话">
-          <Space.Compact block>
-            <Select
-              style={{ flex: 1 }}
-              showSearch
-              optionFilterProp="label"
-              value={target}
-              onChange={setTarget}
-              options={[
-                { value: CURRENT_PAGE, label: '当前网页' },
-                ...clips.map((c) => ({ value: c.id, label: c.title })),
-              ]}
-            />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() =>
-                startNewSession(target === CURRENT_PAGE ? undefined : target)
-              }
-            >
-              新对话
-            </Button>
-          </Space.Compact>
-        </Card>
-
-        {sessions.length === 0 ? (
-          <Empty description="还没有对话记录" />
-        ) : (
-          sessions.map((s) => (
-            <Card
-              key={s.id}
-              size="small"
-              hoverable
-              styles={{ body: { padding: '8px 12px' } }}
-              onClick={() => void openSession(s.id)}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <Typography.Text strong ellipsis={{ tooltip: s.title }}>
-                    {s.title}
-                  </Typography.Text>
-                  <div>
-                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                      {s.clipId ? '收藏对话' : '网页对话'} · {s.messageCount} 条 ·{' '}
-                      {s.updatedAt.slice(0, 10)}
-                    </Typography.Text>
-                  </div>
-                </div>
-                <Popconfirm
-                  title="删除这个对话？"
-                  okText="删除"
-                  cancelText="取消"
-                  okButtonProps={{ danger: true }}
-                  onConfirm={() => void handleDelete(s.id)}
-                >
-                  <Button
-                    size="small"
-                    type="text"
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </Popconfirm>
-              </div>
-            </Card>
-          ))
-        )}
-      </Space>
-    );
-  }
-
-  /* ---------------------------- 会话详情 ---------------------------- */
-
-  const contextLabel = session?.page
-    ? session.page.title
-    : (clips.find((c) => c.id === (session?.clipId ?? draftClipId))?.title ??
-      '当前网页');
 
   return (
     <div className="chat-session">
       <div className="chat-session-header">
-        <Button
-          size="small"
-          type="text"
-          icon={<ArrowLeftOutlined />}
-          onClick={() => {
-            abortRef.current?.abort();
-            setView('list');
-          }}
-        />
-        <Typography.Text strong ellipsis={{ tooltip: contextLabel }}>
-          {contextLabel}
+        <Typography.Text
+          strong
+          title={contextTitle}
+          ellipsis={{ tooltip: contextTitle }}
+        >
+          {contextTitle}
         </Typography.Text>
       </div>
 
       <div className="chat-messages">
         {(session?.messages ?? []).map((m, i) => (
           <div key={i} className={`bubble ${m.role}`}>
-            {m.content}
+            {m.role === 'assistant' ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+            ) : (
+              m.content
+            )}
           </div>
         ))}
         {streaming !== undefined && (
-          <div className="bubble assistant">{streaming || '…'}</div>
+          <div className="bubble assistant">
+            {streaming ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{streaming}</ReactMarkdown>
+            ) : (
+              '…'
+            )}
+          </div>
         )}
         {(session?.messages.length ?? 0) === 0 && streaming === undefined && (
-          <Typography.Text type="secondary" style={{ textAlign: 'center', padding: 16 }}>
-            围绕这个网页提问吧，例如"这个网站有什么值得借鉴的设计？"
-          </Typography.Text>
+          <div className="chat-empty-hint">
+            <div>围绕这个网页提问吧</div>
+            <div>例如："这个网站有什么值得借鉴的设计？"</div>
+          </div>
         )}
         <div ref={bottomRef} />
       </div>
 
       {error && <Alert type="error" showIcon message={error} closable style={{ marginBottom: 8 }} />}
 
-      <div className="chat-input">
-        <Input.TextArea
-          autoSize={{ minRows: 1, maxRows: 4 }}
-          placeholder="输入问题，Enter 发送，Shift+Enter 换行"
-          value={input}
-          disabled={busy}
-          onChange={(e) => setInput(e.target.value)}
-          onPressEnter={(e) => {
-            if (!e.shiftKey) {
-              e.preventDefault();
-              void handleSend();
-            }
-          }}
+      {picked && (
+        <Alert
+          type="info"
+          showIcon
+          icon={<AimOutlined />}
+          message={`已选取页面内容（${picked.length} 字），将随下一条消息发送`}
+          closable
+          onClose={() => setPicked(undefined)}
+          style={{ marginBottom: 8 }}
         />
-        {busy ? (
-          <Button danger icon={<StopOutlined />} onClick={handleStop} />
-        ) : (
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            disabled={!input.trim()}
-            onClick={() => void handleSend()}
+      )}
+
+      <div className="chat-input">
+        <div className="chat-input-card">
+          <Input.TextArea
+            variant="borderless"
+            autoSize={{ minRows: 3, maxRows: 8 }}
+            placeholder="输入问题…"
+            value={input}
+            disabled={busy}
+            onChange={(e) => setInput(e.target.value)}
+            onPressEnter={(e) => {
+              if (!e.shiftKey) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
           />
-        )}
+          <div className="chat-input-footer">
+            {busy ? (
+              <Button size="small" danger icon={<StopOutlined />} onClick={handleStop} />
+            ) : (
+              <Button
+                size="small"
+                type="primary"
+                title="发送"
+                icon={<SendOutlined />}
+                disabled={!input.trim()}
+                onClick={() => void handleSend()}
+              />
+            )}
+            <Button
+              size="small"
+              title="选取页面元素"
+              icon={<AimOutlined />}
+              loading={picking}
+              disabled={busy}
+              onClick={() => void handlePick()}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
