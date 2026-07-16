@@ -75,7 +75,7 @@ export default function App() {
 
   return (
     <div className="options-page">
-      <Typography.Title level={3}>拾页 PageTrove 设置</Typography.Title>
+      <Typography.Title level={3}>拾页 设置</Typography.Title>
 
       <Space direction="vertical" size={16} style={{ display: 'flex' }}>
         <Card title="DeepSeek 接口" size="small">

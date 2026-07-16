@@ -22,24 +22,19 @@ body {
   border-bottom: 1px solid #f0f0f0;
 }
 
-/* Tabs 占满剩余高度，内容区滚动 */
-.app-tabs {
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 视图主体：占满剩余高度，内容区滚动 */
+.app-body {
   flex: 1;
   min-height: 0;
-  background: #fff;
-}
-
-.app-tabs .ant-tabs-nav {
-  margin-bottom: 0;
-}
-
-.app-tabs .ant-tabs-content-holder {
   overflow-y: auto;
-  background: #f5f5f5;
-}
-
-.app-tabs .ant-tabs-tabpane {
   padding: 12px;
+  background: #f5f5f5;
 }
 
 .page-title-row {
@@ -55,12 +50,6 @@ body {
   flex-shrink: 0;
 }
 
-.point-list {
-  margin: 4px 0;
-  padding-left: 18px;
-  line-height: 1.6;
-}
-
 .options-page {
   max-width: 640px;
   margin: 0 auto;
@@ -68,11 +57,6 @@ body {
 }
 
 /* 对话 */
-.app-tabs .ant-tabs-content,
-.app-tabs .ant-tabs-tabpane {
-  height: 100%;
-}
-
 .chat-session {
   display: flex;
   flex-direction: column;
@@ -97,6 +81,15 @@ body {
   padding-bottom: 8px;
 }
 
+/* 空会话提示 */
+.chat-empty-hint {
+  text-align: center;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  line-height: 2;
+  padding: 24px 8px;
+}
+
 .bubble {
   max-width: 85%;
   padding: 8px 10px;
@@ -119,14 +112,122 @@ body {
   background: #fff;
   border: 1px solid #f0f0f0;
   border-bottom-left-radius: 2px;
+  white-space: normal; /* Markdown 自行处理段落 */
+}
+
+/* 气泡内 Markdown 样式 */
+.bubble.assistant > :first-child {
+  margin-top: 0;
+}
+
+.bubble.assistant > :last-child {
+  margin-bottom: 0;
+}
+
+.bubble.assistant p {
+  margin: 6px 0;
+}
+
+.bubble.assistant ul,
+.bubble.assistant ol {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.bubble.assistant pre {
+  overflow-x: auto;
+  background: #f6f8fa;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin: 6px 0;
+}
+
+.bubble.assistant code {
+  background: #f0f0f0;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.bubble.assistant pre code {
+  background: none;
+  padding: 0;
+}
+
+.bubble.assistant blockquote {
+  margin: 6px 0;
+  padding: 2px 10px;
+  border-left: 3px solid #d9d9d9;
+  color: #666;
+}
+
+.bubble.assistant h1,
+.bubble.assistant h2,
+.bubble.assistant h3,
+.bubble.assistant h4 {
+  font-size: 14px;
+  margin: 8px 0 4px;
+}
+
+.bubble.assistant table {
+  border-collapse: collapse;
+  margin: 6px 0;
+  display: block;
+  overflow-x: auto;
+}
+
+.bubble.assistant th,
+.bubble.assistant td {
+  border: 1px solid #e5e5e5;
+  padding: 4px 8px;
+}
+
+.bubble.assistant img {
+  max-width: 100%;
+}
+
+.bubble.assistant a {
+  word-break: break-all;
 }
 
 .chat-input {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
   position: sticky;
   bottom: 0;
   background: #f5f5f5;
   padding-top: 4px;
+}
+
+/* 输入卡片：上方输入域，下方卡片脚（按钮靠右） */
+.chat-input-card {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  padding: 6px 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* 聚焦效果放在整个卡片上 */
+.chat-input-card:focus-within {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.12);
+}
+
+/* 取消输入域自身的悬停/聚焦样式 */
+.chat-input-card .ant-input {
+  padding-left: 4px;
+  padding-right: 4px;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.chat-input-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #f5f5f5;
 }

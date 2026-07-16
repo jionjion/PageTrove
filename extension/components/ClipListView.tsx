@@ -36,11 +36,7 @@ export function ClipListView({ onChat }: Props) {
   const [entries, setEntries] = useState<ClipIndexEntry[]>([]);
   const [keyword, setKeyword] = useState('');
   const [tag, setTag] = useState<string>();
-  const [category, setCategory] = useState<string>();
-  const [facets, setFacets] = useState<{ tags: string[]; categories: string[] }>({
-    tags: [],
-    categories: [],
-  });
+  const [facets, setFacets] = useState<{ tags: string[] }>({ tags: [] });
 
   const [expandedId, setExpandedId] = useState<string>();
   const [detail, setDetail] = useState<WebClip>();
@@ -49,9 +45,9 @@ export function ClipListView({ onChat }: Props) {
   const [error, setError] = useState<string>();
 
   const refresh = useCallback(async () => {
-    setEntries(await queryClips({ keyword: keyword || undefined, tag, category }));
+    setEntries(await queryClips({ keyword: keyword || undefined, tag }));
     setFacets(await collectFacets());
-  }, [keyword, tag, category]);
+  }, [keyword, tag]);
 
   useEffect(() => {
     void refresh();
@@ -107,24 +103,14 @@ export function ClipListView({ onChat }: Props) {
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
       />
-      <Space.Compact block>
-        <Select
-          style={{ flex: 1 }}
-          placeholder="全部标签"
-          allowClear
-          value={tag}
-          onChange={setTag}
-          options={facets.tags.map((t) => ({ value: t, label: t }))}
-        />
-        <Select
-          style={{ flex: 1 }}
-          placeholder="全部分类"
-          allowClear
-          value={category}
-          onChange={setCategory}
-          options={facets.categories.map((c) => ({ value: c, label: c }))}
-        />
-      </Space.Compact>
+      <Select
+        style={{ width: '100%' }}
+        placeholder="全部标签"
+        allowClear
+        value={tag}
+        onChange={setTag}
+        options={facets.tags.map((t) => ({ value: t, label: t }))}
+      />
 
       {error && <Alert type="error" showIcon message={error} closable />}
 
@@ -149,7 +135,6 @@ export function ClipListView({ onChat }: Props) {
             </div>
             <Typography.Text type="secondary" style={{ fontSize: 11 }}>
               {entry.domain}
-              {entry.category ? ` · ${entry.category}` : ''}
               {' · '}
               {entry.createdAt.slice(0, 10)}
             </Typography.Text>
@@ -173,27 +158,6 @@ export function ClipListView({ onChat }: Props) {
                 style={{ marginTop: 10 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {detail.interestingPoints.length > 0 && (
-                  <>
-                    <Typography.Text strong>好玩的地方</Typography.Text>
-                    <ul className="point-list">
-                      {detail.interestingPoints.map((p, i) => (
-                        <li key={i}>{p}</li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-                {detail.inspiration.length > 0 && (
-                  <>
-                    <Typography.Text strong>值得借鉴</Typography.Text>
-                    <ul className="point-list">
-                      {detail.inspiration.map((p, i) => (
-                        <li key={i}>{p}</li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-
                 <Typography.Text strong style={{ display: 'block', margin: '8px 0 4px' }}>
                   备注
                 </Typography.Text>
@@ -210,7 +174,7 @@ export function ClipListView({ onChat }: Props) {
                   mode="tags"
                   style={{ width: '100%' }}
                   value={editTags}
-                  onChange={(tags) => setEditTags(tags.slice(0, 6))}
+                  onChange={(tags) => setEditTags(tags.slice(0, 5))}
                   open={false}
                   suffixIcon={null}
                   tokenSeparators={[',', '，']}

@@ -97,10 +97,7 @@ export function CurrentPageView() {
       faviconUrl: snapshot?.favicon ?? tab.favIconUrl,
 
       summary: analysis?.summary,
-      interestingPoints: analysis?.interestingPoints ?? [],
-      inspiration: analysis?.inspiration ?? [],
       tags: analysis?.tags ?? [],
-      category: analysis?.category,
 
       userNote: note.trim() || undefined,
       selectedText: snapshot?.selectedText,
@@ -140,10 +137,7 @@ export function CurrentPageView() {
         ...(analysis
           ? {
               summary: analysis.summary,
-              interestingPoints: analysis.interestingPoints,
-              inspiration: analysis.inspiration,
               tags: analysis.tags,
-              category: analysis.category,
             }
           : {}),
       });

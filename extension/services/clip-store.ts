@@ -16,7 +16,6 @@ function toIndexEntry(clip: WebClip): ClipIndexEntry {
     faviconUrl: clip.faviconUrl,
     summary: clip.summary,
     tags: clip.tags,
-    category: clip.category,
     createdAt: clip.createdAt,
   };
 }
@@ -103,9 +102,6 @@ export async function queryClips(query: ClipQuery = {}): Promise<ClipIndexEntry[
   if (query.tag) {
     entries = entries.filter((e) => e.tags.includes(query.tag!));
   }
-  if (query.category) {
-    entries = entries.filter((e) => e.category === query.category);
-  }
   if (query.domain) {
     entries = entries.filter((e) => e.domain === query.domain);
   }
@@ -118,19 +114,14 @@ export async function queryClips(query: ClipQuery = {}): Promise<ClipIndexEntry[
   return entries;
 }
 
-/** 收集索引中出现过的全部标签和分类，用于筛选器 */
-export async function collectFacets(): Promise<{
-  tags: string[];
-  categories: string[];
-}> {
+/** 收集索引中出现过的全部标签，用于筛选器 */
+export async function collectFacets(): Promise<{ tags: string[] }> {
   const index = await readIndex();
   const tags = new Set<string>();
-  const categories = new Set<string>();
   for (const entry of index) {
     entry.tags.forEach((t) => tags.add(t));
-    if (entry.category) categories.add(entry.category);
   }
-  return { tags: [...tags].sort(), categories: [...categories].sort() };
+  return { tags: [...tags].sort() };
 }
 
 /** 导出全部收藏为 JSON 字符串（不包含设置和 API Key） */
@@ -169,8 +160,6 @@ export async function importAll(json: string): Promise<number> {
 
     await writeClip({
       ...clip,
-      interestingPoints: clip.interestingPoints ?? [],
-      inspiration: clip.inspiration ?? [],
       tags: clip.tags ?? [],
     });
     index.unshift(toIndexEntry(clip));

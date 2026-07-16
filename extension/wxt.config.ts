@@ -4,7 +4,7 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
 
   manifest: {
-    name: '拾页 PageTrove',
+    name: '拾页',
     description: '记录、整理和回顾有趣的网站',
     version: '0.1.0',
 
