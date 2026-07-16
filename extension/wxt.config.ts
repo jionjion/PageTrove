@@ -10,7 +10,9 @@ export default defineConfig({
 
     permissions: ['activeTab', 'scripting', 'storage', 'tabs', 'sidePanel'],
 
-    host_permissions: ['https://api.deepseek.com/*'],
+    // <all_urls>：剪藏插件需要在用户点击"读取"时向任意页面注入采集脚本。
+    // activeTab 只覆盖"点击扩展图标那一刻"的标签页，侧边栏内的按钮点击不会授予它。
+    host_permissions: ['<all_urls>', 'https://api.deepseek.com/*'],
 
     action: {
       default_title: '打开网站藏宝库',

@@ -66,3 +66,67 @@ body {
   margin: 0 auto;
   padding: 24px 16px;
 }
+
+/* 对话 */
+.app-tabs .ant-tabs-content,
+.app-tabs .ant-tabs-tabpane {
+  height: 100%;
+}
+
+.chat-session {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 300px;
+}
+
+.chat-session-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+  min-width: 0;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.bubble {
+  max-width: 85%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  line-height: 1.6;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble.user {
+  align-self: flex-end;
+  background: #1677ff;
+  color: #fff;
+  border-bottom-right-radius: 2px;
+}
+
+.bubble.assistant {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-bottom-left-radius: 2px;
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  position: sticky;
+  bottom: 0;
+  background: #f5f5f5;
+  padding-top: 4px;
+}
