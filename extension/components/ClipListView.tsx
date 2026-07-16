@@ -1,4 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  Button,
+  Card,
+  Empty,
+  Input,
+  Popconfirm,
+  Select,
+  Space,
+  Tag,
+  Typography,
+} from 'antd';
+import {
+  DeleteOutlined,
+  ExportOutlined,
+  SaveOutlined,
+} from '@ant-design/icons';
 import type { ClipIndexEntry, WebClip } from '@/types/clip';
 import {
   collectFacets,
@@ -12,8 +29,8 @@ import { toErrorMessage } from '@/utils/errors';
 export function ClipListView() {
   const [entries, setEntries] = useState<ClipIndexEntry[]>([]);
   const [keyword, setKeyword] = useState('');
-  const [tag, setTag] = useState('');
-  const [category, setCategory] = useState('');
+  const [tag, setTag] = useState<string>();
+  const [category, setCategory] = useState<string>();
   const [facets, setFacets] = useState<{ tags: string[]; categories: string[] }>({
     tags: [],
     categories: [],
@@ -22,17 +39,11 @@ export function ClipListView() {
   const [expandedId, setExpandedId] = useState<string>();
   const [detail, setDetail] = useState<WebClip>();
   const [editNote, setEditNote] = useState('');
-  const [editTags, setEditTags] = useState('');
+  const [editTags, setEditTags] = useState<string[]>([]);
   const [error, setError] = useState<string>();
 
   const refresh = useCallback(async () => {
-    setEntries(
-      await queryClips({
-        keyword: keyword || undefined,
-        tag: tag || undefined,
-        category: category || undefined,
-      }),
-    );
+    setEntries(await queryClips({ keyword: keyword || undefined, tag, category }));
     setFacets(await collectFacets());
   }, [keyword, tag, category]);
 
@@ -51,12 +62,11 @@ export function ClipListView() {
       setExpandedId(id);
       setDetail(clip);
       setEditNote(clip.userNote ?? '');
-      setEditTags(clip.tags.join(', '));
+      setEditTags(clip.tags);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('确定删除这条收藏吗？')) return;
     try {
       await removeClip(id);
       if (expandedId === id) {
@@ -74,10 +84,7 @@ export function ClipListView() {
     try {
       const next = await updateClip(detail.id, {
         userNote: editNote.trim() || undefined,
-        tags: editTags
-          .split(/[,，]/)
-          .map((t) => t.trim())
-          .filter(Boolean),
+        tags: editTags,
       });
       setDetail(next);
       await refresh();
@@ -87,135 +94,154 @@ export function ClipListView() {
   };
 
   return (
-    <div className="clip-list">
-      <div className="filters">
-        <input
-          type="search"
-          placeholder="搜索标题 / 域名 / 标签…"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
+    <Space direction="vertical" size={10} style={{ display: 'flex' }}>
+      <Input.Search
+        placeholder="搜索标题 / 域名 / 标签…"
+        allowClear
+        value={keyword}
+        onChange={(e) => setKeyword(e.target.value)}
+      />
+      <Space.Compact block>
+        <Select
+          style={{ flex: 1 }}
+          placeholder="全部标签"
+          allowClear
+          value={tag}
+          onChange={setTag}
+          options={facets.tags.map((t) => ({ value: t, label: t }))}
         />
-        <div className="filter-row">
-          <select value={tag} onChange={(e) => setTag(e.target.value)}>
-            <option value="">全部标签</option>
-            {facets.tags.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">全部分类</option>
-            {facets.categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+        <Select
+          style={{ flex: 1 }}
+          placeholder="全部分类"
+          allowClear
+          value={category}
+          onChange={setCategory}
+          options={facets.categories.map((c) => ({ value: c, label: c }))}
+        />
+      </Space.Compact>
 
-      {error && <div className="message error">{error}</div>}
+      {error && <Alert type="error" showIcon message={error} closable />}
 
       {entries.length === 0 ? (
-        <div className="empty-state">
-          <p>还没有收藏。</p>
-          <p>去「当前网页」标签页收藏第一个网站吧。</p>
-        </div>
+        <Empty description="还没有收藏，去「当前网页」收藏第一个网站吧" />
       ) : (
-        <ul className="clips">
-          {entries.map((entry) => (
-            <li key={entry.id} className="clip-item">
-              <div
-                className="clip-head"
-                onClick={() => void openDetail(entry.id)}
-              >
-                {entry.faviconUrl && (
-                  <img className="favicon" src={entry.faviconUrl} alt="" />
-                )}
-                <div className="clip-head-text">
-                  <div className="clip-title">{entry.title}</div>
-                  <div className="clip-meta">
-                    {entry.domain}
-                    {entry.category ? ` · ${entry.category}` : ''}
-                    {' · '}
-                    {entry.createdAt.slice(0, 10)}
-                  </div>
-                  {entry.summary && (
-                    <div className="clip-summary">{entry.summary}</div>
-                  )}
-                  {entry.tags.length > 0 && (
-                    <div className="clip-tags">
-                      {entry.tags.map((t) => (
-                        <span key={t} className="tag">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {expandedId === entry.id && detail && (
-                <div className="clip-detail">
-                  {detail.interestingPoints.length > 0 && (
-                    <>
-                      <div className="field-label">好玩的地方</div>
-                      <ul className="point-list">
-                        {detail.interestingPoints.map((p, i) => (
-                          <li key={i}>{p}</li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  {detail.inspiration.length > 0 && (
-                    <>
-                      <div className="field-label">值得借鉴</div>
-                      <ul className="point-list">
-                        {detail.inspiration.map((p, i) => (
-                          <li key={i}>{p}</li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-
-                  <div className="field-label">备注</div>
-                  <textarea
-                    rows={2}
-                    value={editNote}
-                    onChange={(e) => setEditNote(e.target.value)}
-                  />
-
-                  <div className="field-label">标签（逗号分隔）</div>
-                  <input
-                    type="text"
-                    value={editTags}
-                    onChange={(e) => setEditTags(e.target.value)}
-                  />
-
-                  <div className="btn-row">
-                    <button
-                      className="btn"
-                      onClick={() => window.open(detail.url, '_blank')}
-                    >
-                      打开网页
-                    </button>
-                    <button className="btn" onClick={() => void handleSaveEdit()}>
-                      保存修改
-                    </button>
-                    <button
-                      className="btn danger"
-                      onClick={() => void handleDelete(entry.id)}
-                    >
-                      删除
-                    </button>
-                  </div>
-                </div>
+        entries.map((entry) => (
+          <Card
+            key={entry.id}
+            size="small"
+            hoverable
+            styles={{ body: { padding: '10px 12px' } }}
+            onClick={() => void openDetail(entry.id)}
+          >
+            <div className="page-title-row">
+              {entry.faviconUrl && (
+                <img className="favicon" src={entry.faviconUrl} alt="" />
               )}
-            </li>
-          ))}
-        </ul>
+              <Typography.Text strong ellipsis={{ tooltip: entry.title }}>
+                {entry.title}
+              </Typography.Text>
+            </div>
+            <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+              {entry.domain}
+              {entry.category ? ` · ${entry.category}` : ''}
+              {' · '}
+              {entry.createdAt.slice(0, 10)}
+            </Typography.Text>
+            {entry.summary && (
+              <Typography.Paragraph style={{ margin: '4px 0 0' }}>
+                {entry.summary}
+              </Typography.Paragraph>
+            )}
+            {entry.tags.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                {entry.tags.map((t) => (
+                  <Tag key={t} color="blue">
+                    {t}
+                  </Tag>
+                ))}
+              </div>
+            )}
+
+            {expandedId === entry.id && detail && (
+              <div
+                style={{ marginTop: 10 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {detail.interestingPoints.length > 0 && (
+                  <>
+                    <Typography.Text strong>好玩的地方</Typography.Text>
+                    <ul className="point-list">
+                      {detail.interestingPoints.map((p, i) => (
+                        <li key={i}>{p}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {detail.inspiration.length > 0 && (
+                  <>
+                    <Typography.Text strong>值得借鉴</Typography.Text>
+                    <ul className="point-list">
+                      {detail.inspiration.map((p, i) => (
+                        <li key={i}>{p}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+
+                <Typography.Text strong style={{ display: 'block', margin: '8px 0 4px' }}>
+                  备注
+                </Typography.Text>
+                <Input.TextArea
+                  rows={2}
+                  value={editNote}
+                  onChange={(e) => setEditNote(e.target.value)}
+                />
+
+                <Typography.Text strong style={{ display: 'block', margin: '8px 0 4px' }}>
+                  标签
+                </Typography.Text>
+                <Select
+                  mode="tags"
+                  style={{ width: '100%' }}
+                  value={editTags}
+                  onChange={(tags) => setEditTags(tags.slice(0, 6))}
+                  open={false}
+                  suffixIcon={null}
+                  tokenSeparators={[',', '，']}
+                />
+
+                <Space style={{ marginTop: 10 }}>
+                  <Button
+                    size="small"
+                    icon={<ExportOutlined />}
+                    onClick={() => window.open(detail.url, '_blank')}
+                  >
+                    打开网页
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<SaveOutlined />}
+                    onClick={() => void handleSaveEdit()}
+                  >
+                    保存修改
+                  </Button>
+                  <Popconfirm
+                    title="确定删除这条收藏吗？"
+                    okText="删除"
+                    cancelText="取消"
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() => void handleDelete(entry.id)}
+                  >
+                    <Button size="small" danger icon={<DeleteOutlined />}>
+                      删除
+                    </Button>
+                  </Popconfirm>
+                </Space>
+              </div>
+            )}
+          </Card>
+        ))
       )}
-    </div>
+    </Space>
   );
 }
