@@ -90,6 +90,18 @@ body {
   padding: 24px 8px;
 }
 
+/* 对话空状态：垂直居中的图标 + 一行俏皮话 */
+.chat-empty {
+  margin: auto;
+  color: rgba(0, 0, 0, 0.25);
+}
+
+.chat-empty-icon {
+  font-size: 40px;
+  display: block;
+  margin-bottom: 8px;
+}
+
 .bubble {
   max-width: 85%;
   padding: 8px 10px;

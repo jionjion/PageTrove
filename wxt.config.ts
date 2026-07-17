@@ -5,7 +5,7 @@ export default defineConfig({
 
   manifest: {
     name: '拾页',
-    description: '记录、整理和回顾有趣的网站',
+    description: '拾页 - 拾取互联网有价值的碎片',
     version: '0.1.0',
 
     permissions: ['activeTab', 'scripting', 'storage', 'tabs', 'sidePanel'],
@@ -15,7 +15,7 @@ export default defineConfig({
     host_permissions: ['<all_urls>', 'https://api.deepseek.com/*'],
 
     action: {
-      default_title: '打开网站藏宝库',
+      default_title: '拾页',
       default_icon: {
         16: '/icon/16.png',
         32: '/icon/32.png',

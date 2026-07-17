@@ -114,7 +114,7 @@ export function ClipListView({ active, onChat }: Props) {
         options={facets.tags.map((t) => ({ value: t, label: t }))}
       />
 
-      {error && <Alert type="error" showIcon message={error} closable />}
+      {error && <Alert type="error" showIcon title={error} closable />}
 
       {entries.length === 0 ? (
         <Empty description="还没有收藏，点上方 ☆ 收藏当前网页吧" />
@@ -214,7 +214,9 @@ export function ClipListView({ active, onChat }: Props) {
                   <Button
                     size="small"
                     icon={<ExportOutlined />}
-                    onClick={() => window.open(detail.url, '_blank')}
+                    onClick={() => {
+                      if (detail) window.open(detail.url, '_blank');
+                    }}
                   >
                     打开网页
                   </Button>
@@ -222,7 +224,7 @@ export function ClipListView({ active, onChat }: Props) {
                     <Button
                       size="small"
                       icon={<MessageOutlined />}
-                      onClick={() => onChat(entry.id)}
+                      onClick={() => onChat?.(entry.id)}
                     >
                       对话
                     </Button>

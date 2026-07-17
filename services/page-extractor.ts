@@ -75,7 +75,7 @@ function collectPageData(maxLength: number) {
     return undefined;
   };
 
-  const selectedText = window.getSelection()?.toString().trim() || undefined;
+  const selectedText = (window.getSelection()?.toString() ?? '').trim() || undefined;
 
   const mainElement =
     document.querySelector('article') ??
