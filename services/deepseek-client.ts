@@ -200,9 +200,20 @@ ${ctx.content || '（内容为空）'}`;
 /** 只发送最近的若干轮，避免上下文无限增长 */
 const MAX_HISTORY_MESSAGES = 12;
 
+export interface ChatStreamResult {
+  content: string;
+  /** 服务端返回的 token 统计；部分兼容网关可能不返回 */
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+  };
+  /** 从发起请求到流结束的耗时（毫秒） */
+  elapsedMs: number;
+}
+
 /**
  * 流式对话。每收到一段增量文本调用一次 onDelta（参数为累计的完整文本）。
- * 返回完整回复。
+ * 返回完整回复及 token/耗时统计。
  */
 export async function streamChat(
   ctx: ChatContext,
@@ -210,11 +221,12 @@ export async function streamChat(
   settings: ExtensionSettings,
   onDelta: (fullText: string) => void,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<ChatStreamResult> {
   if (!settings.apiKey.trim()) {
     throw new AppError('MISSING_API_KEY');
   }
 
+  const startedAt = performance.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 120_000);
   signal?.addEventListener('abort', () => controller.abort());
@@ -237,6 +249,7 @@ export async function streamChat(
           ],
           temperature: 1.0,
           stream: true,
+          stream_options: { include_usage: true },
         }),
         signal: controller.signal,
       },
@@ -260,6 +273,7 @@ export async function streamChat(
   const decoder = new TextDecoder();
   let buffer = '';
   let fullText = '';
+  let usage: ChatStreamResult['usage'];
 
   try {
     for (;;) {
@@ -279,11 +293,18 @@ export async function streamChat(
         try {
           const chunk = JSON.parse(payload) as {
             choices?: { delta?: { content?: string } }[];
+            usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
           };
           const delta = chunk.choices?.[0]?.delta?.content;
           if (delta) {
             fullText += delta;
             onDelta(fullText);
+          }
+          if (chunk.usage) {
+            usage = {
+              promptTokens: chunk.usage.prompt_tokens ?? 0,
+              completionTokens: chunk.usage.completion_tokens ?? 0,
+            };
           }
         } catch {
           // 跳过无法解析的 SSE 行
@@ -298,5 +319,9 @@ export async function streamChat(
   if (!fullText.trim()) {
     throw new AppError('INVALID_AI_RESPONSE');
   }
-  return fullText;
+  return {
+    content: fullText,
+    usage,
+    elapsedMs: Math.round(performance.now() - startedAt),
+  };
 }
