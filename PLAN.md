@@ -369,7 +369,7 @@ export default defineConfig({
 | `<all_urls>`                  | 在任意网页注入采集脚本（见下方说明） |
 | `https://api.deepseek.com/*`  | 调用 DeepSeek 接口（其余供应商由 `<all_urls>` 覆盖） |
 
-关于 `<all_urls>`：`activeTab` 只在"点击扩展图标那一刻"授予当前标签页权限，侧边栏常驻打开后，用户切换标签或跳转页面，再点击面板内的"读取并整理"按钮时（不算 activeTab 手势），脚本注入会被浏览器拒绝。因此剪藏类插件需要在安装时申请 `<all_urls>`。插件承诺只在用户主动点击时才注入采集脚本。
+关于 `<all_urls>`：`activeTab` 只在"点击扩展图标那一刻"授予当前标签页权限，侧边栏常驻打开后，用户切换标签或跳转页面，再点击面板内的"整理"按钮时（不算 activeTab 手势），脚本注入会被浏览器拒绝。因此剪藏类插件需要在安装时申请 `<all_urls>`。插件承诺只在用户主动点击时才注入采集脚本。
 
 ---
 
@@ -741,15 +741,15 @@ chat:{id}             单个对话完整数据
 
 ---
 
-## 14. DeepSeek 接入设计
+## 14. AI 接入设计
 
 ### 14.1 请求方式
 
-DeepSeek 提供 OpenAI 兼容接口：
+所有供应商统一使用 OpenAI 兼容接口：
 
 ```http
-POST https://api.deepseek.com/chat/completions
-Authorization: Bearer {DEEPSEEK_API_KEY}
+POST {baseUrl}/chat/completions
+Authorization: Bearer {API_KEY}
 Content-Type: application/json
 ```
 
@@ -772,7 +772,7 @@ Content-Type: application/json
 
 - 使用 `response_format: json_object` 强制 JSON 输出。
 - 提示词中必须包含 “json” 字样（DeepSeek 对 json_object 的要求）。
-- 分析场景不需要流式；后续对话场景可开启 `stream: true`。
+- 分析场景不使用流式；对话场景使用 `stream: true`（已实现，SSE 增量渲染）。
 
 ### 14.2 AI Client 接口
 
@@ -781,17 +781,24 @@ Content-Type: application/json
 ```ts
 export interface AnalyzeResult {
   summary: string;
-  interestingPoints: string[];
-  inspiration: string[];
   tags: string[];
-  category: string;
   confidence: number;
 }
 
 export async function analyzePage(
   snapshot: PageSnapshot,
   note: string,
+  settings: ExtensionSettings,
 ): Promise<AnalyzeResult>;
+
+/** 流式对话：onDelta 收到累计全文，返回完整回复 */
+export async function streamChat(
+  ctx: ChatContext,
+  history: { role: 'user' | 'assistant'; content: string }[],
+  settings: ExtensionSettings,
+  onDelta: (fullText: string) => void,
+  signal?: AbortSignal,
+): Promise<string>;
 ```
 
 ### 14.3 调用位置
@@ -808,7 +815,6 @@ export async function analyzePage(
 export interface ClipQuery {
   keyword?: string;
   tag?: string;
-  category?: string;
   domain?: string;
   sort?: 'createdAt_desc' | 'createdAt_asc';
 }
@@ -904,14 +910,12 @@ export function normalizeUrl(
 
 1. 只能依据输入内容，不得虚构网页功能。
 2. 如果网页信息不足，应明确体现“信息不足”。
-3. 一句话介绍不超过50个汉字。
-4. 标签输出3至6个。
-5. “好玩的地方”关注用户为什么值得收藏。
-6. “值得借鉴”关注产品、交互、视觉、内容和创意。
-7. 不要复述大段网页原文。
-8. 不要输出Markdown。
-9. 只输出符合约定结构的JSON。
-10. confidence 为0到1之间的小数。
+3. 摘要用于让用户快速了解这个收藏：说明网站是什么、有什么内容、为什么值得收藏，控制在100个汉字以内。
+4. 标签输出3至5个。
+5. 不要复述大段网页原文。
+6. 不要输出Markdown。
+7. 只输出符合约定结构的JSON。
+8. confidence 为0到1之间的小数。
 ```
 
 ### 18.2 User Prompt 模板
@@ -942,21 +946,12 @@ export function normalizeUrl(
 
 ```json
 {
-  "summary": "一句话介绍",
-  "interestingPoints": [
-    "好玩的地方1",
-    "好玩的地方2"
-  ],
-  "inspiration": [
-    "值得借鉴的设计或功能1",
-    "值得借鉴的设计或功能2"
-  ],
+  "summary": "摘要",
   "tags": [
     "标签1",
     "标签2",
     "标签3"
   ],
-  "category": "网站分类",
   "confidence": 0.85
 }
 ```
@@ -981,18 +976,15 @@ export function normalizeUrl(
 建议限制：
 
 ```text
-summary：最多 100 字
-interestingPoints：最多 5 条
-inspiration：最多 5 条
-tags：3 至 6 条
-category：最多 50 字
+summary：最多 200 字符
+tags：3 至 5 条，单个最长 20 字符
 ```
 
 ---
 
 ## 20. API Key 安全要求
 
-由于没有后端，DeepSeek API Key 由用户自行填写并保存在本机 `browser.storage.local`。
+由于没有后端，API Key 由用户自行填写并保存在本机 `browser.storage.local`。
 
 必须做到：
 
@@ -1007,7 +999,7 @@ Key 不出现在日志和错误信息中
 需要向用户说明的风险：
 
 ```text
-API Key 保存在本地浏览器中，仅供本插件调用 DeepSeek 使用。
+API Key 保存在本地浏览器中，仅供本插件调用你配置的 AI 接口使用。
 请使用独立的、设置了额度上限的 Key。
 ```
 
@@ -1021,19 +1013,19 @@ API Key 保存在本地浏览器中，仅供本插件调用 DeepSeek 使用。
 
 ```ts
 export interface ExtensionSettings {
-  deepseekApiKey?: string;
-  deepseekBaseUrl: string;        // 默认 https://api.deepseek.com
-  model: string;                  // 默认 deepseek-chat
+  provider: string;               // deepseek / kimi / zhipu / qwen / openai / custom
+  apiKey: string;
+  baseUrl: string;                // OpenAI 兼容接口地址
+  model: string;
 
-  maxContentLength: number;
+  maxContentLength: number;       // 内部固定默认 12000，不在设置页暴露
   includeSelectedText: boolean;
-  autoExtractContent: boolean;
 }
 ```
 
 可以保存：
 
-- DeepSeek API Key（用户自填，仅本机）
+- API Key（用户自填，仅本机）
 - 用户设置
 - 收藏记录
 - 对话记录
@@ -1090,27 +1082,25 @@ export type ErrorCode =
 插件界面需要明确说明：
 
 ```text
-插件只会在用户主动点击“读取并整理当前网页”时读取页面内容。
+插件只会在用户主动点击“整理”时读取页面内容。
 默认不会读取输入框、密码、Cookie 或本地存储。
-页面内容只会发送给用户自己配置的 DeepSeek 接口，用于生成整理结果。
+页面内容只会发送给用户自己配置的 AI 接口，用于生成整理结果。
 所有收藏数据只保存在本机浏览器中。
 ```
 
-建议增加开关：
+当前提供的开关：
 
 ```text
-[x] 读取页面主要正文
 [x] 包含当前选中文字
-[ ] 附加当前页面截图
 ```
 
-截图默认关闭。
+截图功能未实现（默认不做）。
 
 ---
 
 ## 24. 分阶段实施计划
 
-### V0：纯本地版
+### V0：纯本地版（已完成）
 
 目标：验证交互是否舒服。
 
@@ -1134,20 +1124,20 @@ export type ErrorCode =
 填写备注并完成本地收藏。
 ```
 
-### V1：AI 整理版
+### V1：AI 整理版（已完成，后续迭代有调整）
 
 功能：
 
-- 设置页配置 DeepSeek API Key
+- 设置页配置 API Key（已扩展为多供应商）
 - 网页正文抽取
-- 调用 DeepSeek 自动摘要
+- AI 自动摘要
 - AI 自动标签
-- AI 生成“好玩的地方”
-- AI 生成“值得借鉴”
 - AI 输出 JSON 解析与校验
-- 收藏查询（关键词 / 标签 / 分类 / 域名）
+- 收藏查询（关键词 / 标签）
 - URL 标准化与重复收藏检测
 - 导出 / 导入 JSON
+
+> 迭代调整：移除“好玩的地方 / 值得借鉴 / 分类”，AI 结果只保留摘要和标签；“整理”和“收藏”合并为单按钮流程。
 
 验收标准：
 
@@ -1157,7 +1147,7 @@ export type ErrorCode =
 修改后成功保存到本地收藏库。
 ```
 
-### V2：网页对话版
+### V2：网页对话版（已完成）
 
 功能：
 
@@ -1165,7 +1155,10 @@ export type ErrorCode =
 - 针对已收藏网页提问
 - 对话引用原网页内容
 - 对话历史保存在 browser.storage.local
-- 收藏详情页
+- 流式回复 + Markdown 气泡
+- 页面元素选取（类 F12 拾取器）
+- 对话内切换模型
+- 历史对话标题搜索
 
 验收标准：
 
@@ -1175,7 +1168,7 @@ export type ErrorCode =
 对话记录可以在本地查看。
 ```
 
-### V3：智能藏宝库
+### V3：智能藏宝库（暂缓）
 
 功能：
 
@@ -1263,31 +1256,31 @@ export type ErrorCode =
 
 ## 26. 第一版完成定义
 
-第一版完成时，应满足：
+第一版已全部完成：
 
-- [ ] Chrome 和 Edge 可以加载插件
-- [ ] 点击插件图标打开右侧栏
-- [ ] 可以读取当前网页标题、URL、favicon
-- [ ] 可以获取用户选中文字
-- [ ] 可以抽取主要正文
-- [ ] 可以填写用户备注
-- [ ] 可以在设置页配置 DeepSeek API Key
-- [ ] 可以调用 DeepSeek 完成分析
-- [ ] AI 返回结构化 JSON 并通过校验
-- [ ] 用户可以修改分析结果
-- [ ] 可以保存到 browser.storage.local
-- [ ] 可以查询收藏列表
-- [ ] 可以删除收藏
-- [ ] 可以处理重复 URL
-- [ ] 浏览器内部页面有友好提示
-- [ ] 各类错误有清晰提示
-- [ ] API Key 不进入代码仓库、日志和导出数据
+- [x] Chrome 和 Edge 可以加载插件
+- [x] 点击插件图标打开右侧栏
+- [x] 可以读取当前网页标题、URL、favicon
+- [x] 可以获取用户选中文字
+- [x] 可以抽取主要正文
+- [x] 可以填写用户备注
+- [x] 可以在设置页配置 API Key（多供应商）
+- [x] 可以调用 AI 完成分析
+- [x] AI 返回结构化 JSON 并通过校验
+- [x] 用户可以修改分析结果
+- [x] 可以保存到 browser.storage.local
+- [x] 可以查询收藏列表
+- [x] 可以删除收藏
+- [x] 可以处理重复 URL
+- [x] 浏览器内部页面有友好提示
+- [x] 各类错误有清晰提示
+- [x] API Key 不进入代码仓库、日志和导出数据
 
 ---
 
-## 27. Claude Code 项目执行提示词
+## 27. Claude Code 项目执行提示词（历史存档）
 
-下面这段可以直接交给 Claude Code。
+项目初始实施时使用的提示词，现已完成，仅作记录。
 
 ```text
 你是一名高级前端工程师，请帮助我实现一个“网站藏宝库”浏览器插件项目。
@@ -1372,7 +1365,7 @@ PageTrove/
 Node.js 22
 pnpm
 Chrome 或 Edge
-DeepSeek API Key（https://platform.deepseek.com）
+任一支持供应商的 API Key（默认 DeepSeek：https://platform.deepseek.com）
 ```
 
 ---
@@ -1442,10 +1435,10 @@ AI 工作流工具
 最合适的落地路径是：
 
 ```text
-V0：浏览器侧边栏 + 本地收藏
-V1：DeepSeek AI 整理 + 本地收藏库
-V2：网页对话（对话记录本地保存）
-V3：语义搜索、相似推荐和自动专题
+V0：浏览器侧边栏 + 本地收藏            ✅ 已完成
+V1：AI 整理（摘要 + 标签）+ 本地收藏库  ✅ 已完成
+V2：网页对话（对话记录本地保存）        ✅ 已完成
+V3：语义搜索、相似推荐和自动专题        ⏸ 暂缓
 ```
 
 第一阶段不要追求“大而全”。
