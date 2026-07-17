@@ -107,8 +107,8 @@ export default function App() {
       </header>
 
       <Space direction="vertical" size={16} style={{ display: 'flex' }}>
-        {/* -------- AI 模型 -------- */}
-        <Card title="AI 模型" size="small">
+        {/* -------- 模型配置 -------- */}
+        <Card title="模型配置" size="small">
           <Label>供应商</Label>
           <Select
             style={{ width: '100%' }}
