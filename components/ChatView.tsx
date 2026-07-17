@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Input, Select, Typography } from 'antd';
+import { Alert, Button, Input, Select } from 'antd';
 import {
   AimOutlined,
   ReadOutlined,
@@ -27,13 +27,14 @@ interface Props {
   command?: ChatCommand;
   /** nonce 变化时执行 command */
   nonce: number;
+  /** 会话上下文标题变化时通知父组件（显示在 App 头部） */
+  onTitleChange: (title: string) => void;
 }
 
-export function ChatView({ command, nonce }: Props) {
+export function ChatView({ command, nonce, onTitleChange }: Props) {
   const [session, setSession] = useState<ChatSession>();
   /** 新会话尚未发送第一条消息时的目标收藏 id（undefined 表示当前网页） */
   const [draftClipId, setDraftClipId] = useState<string>();
-  const [contextTitle, setContextTitle] = useState('当前网页');
 
   const [input, setInput] = useState('');
   /** 通过"选取元素"从页面拾取的文本，随下一条消息一起发送 */
@@ -81,9 +82,9 @@ export function ChatView({ command, nonce }: Props) {
     setDraftClipId(clipId);
     if (clipId) {
       const clip = await getClip(clipId);
-      setContextTitle(clip?.title ?? '关联收藏');
+      onTitleChange(clip?.title ?? '关联收藏');
     } else {
-      setContextTitle('当前网页');
+      onTitleChange('当前网页');
     }
   };
 
@@ -93,10 +94,10 @@ export function ChatView({ command, nonce }: Props) {
     resetState();
     setSession(loaded);
     if (loaded.page) {
-      setContextTitle(loaded.page.title);
+      onTitleChange(loaded.page.title);
     } else if (loaded.clipId) {
       const clip = await getClip(loaded.clipId);
-      setContextTitle(clip?.title ?? '关联收藏（已删除）');
+      onTitleChange(clip?.title ?? '关联收藏（已删除）');
     }
   };
 
@@ -167,7 +168,7 @@ export function ChatView({ command, nonce }: Props) {
               .filter(Boolean)
               .join('\n'),
           };
-          setContextTitle(snapshot.title);
+          onTitleChange(snapshot.title);
         }
         current = {
           id: crypto.randomUUID(),
@@ -245,16 +246,6 @@ export function ChatView({ command, nonce }: Props) {
 
   return (
     <div className="chat-session">
-      <div className="chat-session-header">
-        <Typography.Text
-          strong
-          title={contextTitle}
-          ellipsis={{ tooltip: contextTitle }}
-        >
-          {contextTitle}
-        </Typography.Text>
-      </div>
-
       <div className="chat-messages">
         {(session?.messages ?? []).map((m, i) => (
           <div key={i} className={`bubble ${m.role}`}>
@@ -277,7 +268,7 @@ export function ChatView({ command, nonce }: Props) {
         {(session?.messages.length ?? 0) === 0 && streaming === undefined && (
           <div className="empty-hint chat-empty">
             <ReadOutlined className="chat-empty-icon" />
-            <div>拾取互联网中有价值的页面碎片</div>
+            <div>拾取互联网中有价值的碎片</div>
           </div>
         )}
         <div ref={bottomRef} />

@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Divider,
   Input,
   Select,
   Space,
@@ -24,10 +25,18 @@ import { getSettings, saveSettings } from '@/services/settings-store';
 import { exportAll, importAll } from '@/services/clip-store';
 import { toErrorMessage } from '@/utils/errors';
 
+import iconUrl from '/icon/48.png';
+
 const Label = ({ children }: { children: string }) => (
-  <Typography.Text strong style={{ display: 'block', margin: '10px 0 4px' }}>
+  <Typography.Text strong className="options-section-label">
     {children}
   </Typography.Text>
+);
+
+const Hint = ({ children }: { children: React.ReactNode }) => (
+  <Typography.Paragraph type="secondary" className="options-hint">
+    {children}
+  </Typography.Paragraph>
 );
 
 export default function App() {
@@ -51,7 +60,6 @@ export default function App() {
       provider: id,
       baseUrl: next.baseUrl,
       model: next.models[0] ?? '',
-      // 各家 Key 不通用，切换供应商后需要重新填写
       apiKey: '',
     });
   };
@@ -91,9 +99,15 @@ export default function App() {
 
   return (
     <div className="options-page">
-      <Typography.Title level={3}>拾页 设置</Typography.Title>
+      <header className="options-header">
+        <img src={iconUrl} alt="拾页" className="options-header-logo" />
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          拾页 设置
+        </Typography.Title>
+      </header>
 
       <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+        {/* -------- AI 模型 -------- */}
         <Card title="AI 模型" size="small">
           <Label>供应商</Label>
           <Select
@@ -102,9 +116,9 @@ export default function App() {
             onChange={handleProviderChange}
             options={PROVIDERS.map((p) => ({ value: p.id, label: p.label }))}
           />
-          <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
+          <Hint>
             先选择供应商，Base URL 和模型会自动填好，再填入对应的 API Key。
-          </Typography.Paragraph>
+          </Hint>
 
           <Label>API Key</Label>
           <Input.Password
@@ -113,12 +127,12 @@ export default function App() {
             value={settings.apiKey}
             onChange={(e) => update({ apiKey: e.target.value })}
           />
-          <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
+          <Hint>
             Key 只保存在本机浏览器（browser.storage.local）中，仅用于本插件调用你选择的
             AI 接口，不会同步到云端，也不会出现在导出数据里。建议使用独立的、设置了额度上限的
             Key。
             {preset?.keySite ? `申请地址：${preset.keySite}` : ''}
-          </Typography.Paragraph>
+          </Hint>
 
           <Label>模型</Label>
           <AutoComplete
@@ -137,6 +151,7 @@ export default function App() {
           />
         </Card>
 
+        {/* -------- 网页采集 -------- */}
         <Card title="网页采集" size="small">
           <Checkbox
             checked={settings.includeSelectedText}
@@ -144,26 +159,31 @@ export default function App() {
           >
             包含当前选中文字
           </Checkbox>
-
-          <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
+          <Hint>
             插件只会在你主动点击"AI 整理当前网页"时读取页面内容，默认不会读取输入框、密码、Cookie
             或本地存储。页面内容只会发送给你自己配置的 AI 接口。
-          </Typography.Paragraph>
+          </Hint>
         </Card>
 
-        <Button
-          type="primary"
-          icon={<SaveOutlined />}
-          onClick={() => void handleSave()}
-        >
-          保存设置
-        </Button>
+        {/* -------- 保存按钮 -------- */}
+        <div className="options-actions">
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            onClick={() => void handleSave()}
+          >
+            保存设置
+          </Button>
+        </div>
 
+        <Divider style={{ margin: 0 }} />
+
+        {/* -------- 数据管理 -------- */}
         <Card title="数据管理" size="small">
-          <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+          <Hint>
             所有收藏数据只保存在本机浏览器中，建议定期导出备份。
-          </Typography.Paragraph>
-          <Space>
+          </Hint>
+          <Space style={{ marginTop: 8 }}>
             <Button icon={<DownloadOutlined />} onClick={() => void handleExport()}>
               导出收藏 JSON
             </Button>

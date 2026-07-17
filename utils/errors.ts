@@ -20,7 +20,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   AI_UNAUTHORIZED: 'API Key 无效或额度不足，请检查设置',
   AI_ANALYZE_FAILED: 'AI 分析失败，请稍后重试',
   INVALID_AI_RESPONSE: 'AI 返回格式异常，请重试',
-  DUPLICATE_CLIP: '这个网站之前已经收藏过',
+  DUPLICATE_CLIP: '该网页已收藏，请勿重复保存',
   STORAGE_FULL: '本地存储空间不足，请清理部分收藏',
   SAVE_FAILED: '保存失败，请重试',
 };
