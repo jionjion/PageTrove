@@ -19,6 +19,8 @@ export default function App() {
   const [view, setView] = useState<View>('chat');
   const [chatCommand, setChatCommand] = useState<ChatCommand>();
   const [chatNonce, setChatNonce] = useState(0);
+  /** 当前会话的上下文标题，显示在头部 */
+  const [chatTitle, setChatTitle] = useState('当前网页');
 
   const dispatchChat = (command: ChatCommand) => {
     setChatCommand(command);
@@ -37,8 +39,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <Typography.Title level={5} style={{ margin: 0 }}>
-          拾页
+        <Typography.Title
+          level={5}
+          style={{ margin: 0, flex: 1, minWidth: 0 }}
+          ellipsis={{ tooltip: chatTitle }}
+        >
+          {chatTitle}
         </Typography.Title>
         <div className="app-header-actions">
           <Button
@@ -79,7 +85,7 @@ export default function App() {
 
       {/* 各视图保持挂载以保留状态，仅切换显示 */}
       <div className="app-body" style={view === 'chat' ? undefined : { display: 'none' }}>
-        <ChatView command={chatCommand} nonce={chatNonce} />
+        <ChatView command={chatCommand} nonce={chatNonce} onTitleChange={setChatTitle} />
       </div>
       <div className="app-body" style={view === 'history' ? undefined : { display: 'none' }}>
         <ChatHistoryView

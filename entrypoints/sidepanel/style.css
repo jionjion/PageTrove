@@ -26,6 +26,7 @@ body {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 /* 视图主体：占满剩余高度，内容区滚动 */
@@ -53,7 +54,53 @@ body {
 .options-page {
   max-width: 640px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 0 16px 32px;
+}
+
+.options-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 0;
+  margin-bottom: 8px;
+  background: #f5f5f5;
+}
+
+.options-header-logo {
+  width: 28px;
+  height: 28px;
+}
+
+.options-page .ant-card {
+  border-radius: 10px;
+}
+
+.options-page .ant-card .ant-card-head {
+  min-height: auto;
+  padding: 10px 16px;
+  font-size: 14px;
+}
+
+.options-section-label {
+  display: block;
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+
+.options-hint {
+  font-size: 12px;
+  margin-top: 4px;
+  margin-bottom: 0;
+  line-height: 1.8;
+}
+
+.options-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0;
 }
 
 /* 对话 */
@@ -62,14 +109,6 @@ body {
   flex-direction: column;
   height: 100%;
   min-height: 300px;
-}
-
-.chat-session-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-bottom: 8px;
-  min-width: 0;
 }
 
 .chat-messages {

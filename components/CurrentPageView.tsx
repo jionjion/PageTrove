@@ -239,7 +239,7 @@ export function CurrentPageView() {
       {duplicate && (
         <Card size="small">
           <Typography.Text strong style={{ display: 'block' }}>
-            这个网页已经收藏过
+            该网页已收藏
           </Typography.Text>
           <Typography.Text
             type="secondary"

@@ -182,7 +182,7 @@ export interface ChatContext {
 }
 
 function buildChatSystemPrompt(ctx: ChatContext): string {
-  return `你是"网站藏宝库"的网页问答助手。请基于下面的网页内容回答用户的问题。
+  return `你是"拾页"的网页问答助手。请基于下面的网页内容回答用户的问题。
 
 要求：
 
