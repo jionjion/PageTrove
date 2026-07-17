@@ -213,7 +213,7 @@ export function CurrentPageView() {
         <Alert
           type="error"
           showIcon
-          message={error}
+          title={error}
           action={
             missingKey && (
               <Button

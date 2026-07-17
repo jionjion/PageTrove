@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Input, Select, Typography } from 'antd';
 import {
   AimOutlined,
+  ReadOutlined,
   SendOutlined,
   StopOutlined,
 } from '@ant-design/icons';
@@ -274,24 +275,23 @@ export function ChatView({ command, nonce }: Props) {
           </div>
         )}
         {(session?.messages.length ?? 0) === 0 && streaming === undefined && (
-          <div className="empty-hint">
-            <div>围绕这个网页提问吧</div>
-            <div>例如："这个网站有什么值得借鉴的设计？"</div>
+          <div className="empty-hint chat-empty">
+            <ReadOutlined className="chat-empty-icon" />
+            <div>拾取互联网中有价值的页面碎片</div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      {error && <Alert type="error" showIcon message={error} closable style={{ marginBottom: 8 }} />}
+      {error && <Alert type="error" showIcon title={error} closable style={{ marginBottom: 8 }} />}
 
       {picked && (
         <Alert
           type="info"
           showIcon
           icon={<AimOutlined />}
-          message={`已选取页面内容（${picked.length} 字），将随下一条消息发送`}
-          closable
-          onClose={() => setPicked(undefined)}
+          title={`已选取页面内容（${picked.length} 字），将随下一条消息发送`}
+          closable={{ onClose: () => setPicked(undefined) }}
           style={{ marginBottom: 8 }}
         />
       )}

@@ -58,5 +58,3 @@ pnpm zip            # 打包发布 zip
 ├── utils/                # 错误信息等
 └── public/icon/          # 扩展图标
 ```
-
-更多设计细节见 [PLAN.md](PLAN.md)。
