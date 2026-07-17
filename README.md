@@ -1,30 +1,53 @@
 # 拾页 (PageTrove)
 
-一款浏览器侧边栏扩展：围绕「当前网页」进行 AI 对话，并把有价值的网页整理、收藏到本地。
+> 拾取互联网有价值的碎片
 
-## 功能
+**拾页**是一款浏览器侧边栏扩展，让你在浏览网页时随时召唤 AI 助手——对当前页面提问、一键生成摘要与标签、将有价值的网页整理收藏到本地。
 
-- **网页对话**：读取当前页面正文，直接向 AI 提问；支持选取页面元素作为上下文，输入框左下角可切换模型
-- **历史对话**：会话本地保存，可随时回看、继续
-- **收藏网页**：一键「整理」——AI 生成摘要与标签（最多 5 个），确认后收藏；可附收藏理由
-- **我的收藏**：关键词 / 标签筛选，支持编辑备注与标签、跳回原网页、针对收藏发起对话
-- **多供应商**：DeepSeek / Kimi / 智谱 / 通义千问 / OpenAI / 自定义，均走 OpenAI 兼容接口
+## 核心功能
 
-## 隐私
+### AI 网页对话
 
-- 无后端服务，所有数据（收藏、对话、设置）存于 `browser.storage.local`
-- AI 请求由浏览器直连所选供应商，API Key 由用户自行填写、仅保存在本地
+打开侧边栏即可针对当前页面向 AI 提问。扩展自动提取页面正文作为上下文，也支持手动选取页面中的特定元素，让 AI 回答更精准。对话支持 Markdown 渲染和流式输出。
 
-## 技术栈
+### 智能收藏
 
-- [WXT](https://wxt.dev/) 0.20 + React 18 + TypeScript
-- Ant Design v6
-- Chrome MV3 Side Panel（兼容 Edge）
+点击「整理」，AI 自动为当前网页生成摘要和标签（最多 5 个），你可以在确认前自由编辑，还能附上自己的收藏理由。告别杂乱的书签栏，让每一条收藏都有意义。
+
+### 收藏管理
+
+所有收藏支持关键词搜索和标签筛选，可随时编辑备注与标签、跳回原网页，也可以针对已收藏的内容发起新对话，深入了解。
+
+### 历史对话
+
+所有 AI 对话自动保存在本地，可随时回看或继续未完成的讨论。
+
+### 多模型支持
+
+内置 DeepSeek、Kimi（月之暗面）、智谱 GLM、通义千问、OpenAI 五家供应商预设，也支持任意 OpenAI 兼容接口的自定义配置。在对话输入框中可随时切换模型。
+
+## 快速开始
+
+1. 安装扩展后，点击工具栏图标打开侧边栏
+2. 进入设置页，选择 AI 供应商（Base URL 与模型自动填充）
+3. 填入对应供应商的 API Key
+4. 开始对话或收藏网页
+
+## 隐私与安全
+
+- **零后端**：无任何服务器，所有数据（收藏、对话、设置）仅存储在浏览器本地
+- **密钥本地化**：API Key 由你自行填写，仅保存在 `browser.storage.local`，不会上传到任何第三方
+- **直连 AI**：请求由浏览器直接发送至你选择的 AI 供应商，中间无代理
+
+## 兼容性
+
+- Chrome（MV3 Side Panel）
+- Microsoft Edge
 
 ## 开发
 
 ```bash
-pnpm install        # 安装依赖（postinstall 自动执行 wxt prepare）
+pnpm install        # 安装依赖
 pnpm dev            # Chrome 开发模式
 pnpm dev:edge       # Edge 开发模式
 pnpm compile        # 类型检查
@@ -32,29 +55,4 @@ pnpm build          # 生产构建（.output/chrome-mv3）
 pnpm zip            # 打包发布 zip
 ```
 
-首次使用：打开扩展 → 设置页 → 选择供应商（Base URL 与模型自动填好）→ 填入对应 API Key。
-
-## 目录结构
-
-```
-├── entrypoints/          # WXT 入口
-│   ├── background.ts     # 后台：侧边栏开关等
-│   ├── sidepanel/        # 侧边栏主界面（对话/历史/收藏）
-│   └── options/          # 设置页
-├── components/
-│   ├── ChatView.tsx          # AI 对话
-│   ├── ChatHistoryView.tsx   # 历史对话列表
-│   ├── CurrentPageView.tsx   # 整理并收藏当前网页
-│   ├── ClipListView.tsx      # 我的收藏
-│   └── AnalyzeResultEditor.tsx # 摘要/标签编辑
-├── services/
-│   ├── deepseek-client.ts    # AI 客户端（OpenAI 兼容，流式对话 + 结构化整理）
-│   ├── page-extractor.ts     # 页面正文提取
-│   ├── element-picker.ts     # 页面元素选取
-│   ├── clip-store.ts         # 收藏存储
-│   ├── chat-store.ts         # 会话存储
-│   └── settings-store.ts     # 设置存储（含旧版本迁移）
-├── types/                # 类型定义
-├── utils/                # 错误信息等
-└── public/icon/          # 扩展图标
-```
+技术栈：[WXT](https://wxt.dev/) + React + TypeScript + Ant Design

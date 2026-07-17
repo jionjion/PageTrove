@@ -2,6 +2,13 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
+  /** 输入/输出 token 统计（仅 assistant 消息，且服务端返回 usage 时才有） */
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+  };
+  /** 生成耗时（毫秒，仅 assistant 消息） */
+  elapsedMs?: number;
 }
 
 /** 针对"当前网页"发起对话时固化的页面上下文 */

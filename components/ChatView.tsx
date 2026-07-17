@@ -2,7 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Input, Select } from 'antd';
 import {
   AimOutlined,
+  CaretDownOutlined,
+  CaretUpOutlined,
+  CheckOutlined,
+  ClockCircleOutlined,
+  CopyOutlined,
+  DislikeFilled,
+  DislikeOutlined,
+  LikeFilled,
+  LikeOutlined,
+  LoadingOutlined,
   ReadOutlined,
+  ReloadOutlined,
   SendOutlined,
   StopOutlined,
 } from '@ant-design/icons';
@@ -43,6 +54,10 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
   const [streaming, setStreaming] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  /** 刚复制的消息下标，用于短暂显示"已复制"状态 */
+  const [copiedIndex, setCopiedIndex] = useState<number>();
+  /** 点赞/点踩状态（仅本次会话内展示，不持久化） */
+  const [ratings, setRatings] = useState<Record<number, 'like' | 'dislike'>>({});
   const abortRef = useRef<AbortController>();
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +90,8 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     setStreaming(undefined);
     setInput('');
     setPicked(undefined);
+    setRatings({});
+    setCopiedIndex(undefined);
   };
 
   const startNewSession = async (clipId?: string) => {
@@ -209,7 +226,13 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
         ...withUser,
         messages: [
           ...withUser.messages,
-          { role: 'assistant', content: reply, createdAt: new Date().toISOString() },
+          {
+            role: 'assistant',
+            content: reply.content,
+            createdAt: new Date().toISOString(),
+            usage: reply.usage,
+            elapsedMs: reply.elapsedMs,
+          },
         ],
         updatedAt: new Date().toISOString(),
       };
@@ -230,6 +253,101 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     abortRef.current?.abort();
   };
 
+  /** token 数格式化：1234 → 1.2k，1234567 → 1.2M */
+  const formatTokens = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+    return String(n);
+  };
+
+  const formatTime = (iso: string) => {
+    const d = new Date(iso);
+    const sameDay = d.toDateString() === new Date().toDateString();
+    const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return sameDay ? hm : `${d.getMonth() + 1}-${d.getDate()} ${hm}`;
+  };
+
+  const handleCopy = async (content: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex((v) => (v === index ? undefined : v)), 1500);
+    } catch {
+      setError('复制失败');
+    }
+  };
+
+  const handleRate = (index: number, value: 'like' | 'dislike') => {
+    setRatings((prev) => {
+      const next = { ...prev };
+      if (next[index] === value) {
+        delete next[index]; // 再点一次取消
+      } else {
+        next[index] = value;
+      }
+      return next;
+    });
+  };
+
+  /** 重新回答：丢弃第 index 条（assistant）消息，用其之前的对话重新生成 */
+  const handleRegenerate = async (index: number) => {
+    if (!session || busy) return;
+    setError(undefined);
+    setBusy(true);
+
+    const truncated: ChatSession = {
+      ...session,
+      messages: session.messages.slice(0, index),
+      updatedAt: new Date().toISOString(),
+    };
+    setSession(truncated);
+    // 被丢弃及之后的消息，点赞/点踩状态一并清除
+    setRatings((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([k]) => Number(k) < index)),
+    );
+
+    try {
+      const settings = await getSettings();
+      const context = await resolveContext(truncated);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setStreaming('');
+
+      const reply = await streamChat(
+        context,
+        truncated.messages.map(({ role, content }) => ({ role, content })),
+        settings,
+        setStreaming,
+        controller.signal,
+      );
+
+      const done: ChatSession = {
+        ...truncated,
+        messages: [
+          ...truncated.messages,
+          {
+            role: 'assistant',
+            content: reply.content,
+            createdAt: new Date().toISOString(),
+            usage: reply.usage,
+            elapsedMs: reply.elapsedMs,
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      };
+      setSession(done);
+      await saveChat(done);
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        setError(toErrorMessage(e));
+      }
+    } finally {
+      setStreaming(undefined);
+      setBusy(false);
+      abortRef.current = undefined;
+    }
+  };
+
   const handlePick = async () => {
     if (picking || busy) return;
     setError(undefined);
@@ -248,21 +366,78 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     <div className="chat-session">
       <div className="chat-messages">
         {(session?.messages ?? []).map((m, i) => (
-          <div key={i} className={`bubble ${m.role}`}>
-            {m.role === 'assistant' ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-            ) : (
-              m.content
+          <div key={i} className={`msg-group ${m.role}`}>
+            <div className="msg-time">{formatTime(m.createdAt)}</div>
+            <div className={`bubble ${m.role}`}>
+              {m.role === 'assistant' ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+              ) : (
+                m.content
+              )}
+            </div>
+            {m.role === 'assistant' && (
+              <div className="msg-footer">
+                <div className="msg-stats">
+                  {m.usage && (
+                    <span className="msg-meta">
+                      <CaretUpOutlined /> {formatTokens(m.usage.promptTokens)}
+                      <CaretDownOutlined /> {formatTokens(m.usage.completionTokens)}
+                    </span>
+                  )}
+                  {m.elapsedMs !== undefined && (
+                    <span className="msg-meta">
+                      <ClockCircleOutlined /> {(m.elapsedMs / 1000).toFixed(1)}s
+                    </span>
+                  )}
+                </div>
+                <div className="msg-actions">
+                  <Button
+                    type="text"
+                    size="small"
+                    title="复制"
+                    icon={copiedIndex === i ? <CheckOutlined /> : <CopyOutlined />}
+                    onClick={() => void handleCopy(m.content, i)}
+                  />
+                  <Button
+                    type="text"
+                    size="small"
+                    title="有帮助"
+                    className={ratings[i] === 'like' ? 'rated' : undefined}
+                    icon={ratings[i] === 'like' ? <LikeFilled /> : <LikeOutlined />}
+                    onClick={() => handleRate(i, 'like')}
+                  />
+                  <Button
+                    type="text"
+                    size="small"
+                    title="没帮助"
+                    className={ratings[i] === 'dislike' ? 'rated' : undefined}
+                    icon={ratings[i] === 'dislike' ? <DislikeFilled /> : <DislikeOutlined />}
+                    onClick={() => handleRate(i, 'dislike')}
+                  />
+                  <Button
+                    type="text"
+                    size="small"
+                    title="重新回答"
+                    icon={<ReloadOutlined />}
+                    disabled={busy}
+                    onClick={() => void handleRegenerate(i)}
+                  />
+                </div>
+              </div>
             )}
           </div>
         ))}
         {streaming !== undefined && (
-          <div className="bubble assistant">
-            {streaming ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{streaming}</ReactMarkdown>
-            ) : (
-              '…'
-            )}
+          <div className="msg-group assistant">
+            <div className="bubble assistant">
+              {streaming ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streaming}</ReactMarkdown>
+              ) : (
+                <span className="msg-generating">
+                  <LoadingOutlined spin /> 正在生成…
+                </span>
+              )}
+            </div>
           </div>
         )}
         {(session?.messages.length ?? 0) === 0 && streaming === undefined && (

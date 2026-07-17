@@ -141,8 +141,100 @@ body {
   margin-bottom: 8px;
 }
 
-.bubble {
+/* 一条消息：时间在气泡上方，复制按钮在气泡下方 */
+.msg-group {
   max-width: 85%;
+  display: flex;
+  flex-direction: column;
+}
+
+.msg-group.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.msg-group.assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.msg-time {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 2px;
+  padding: 0 2px;
+}
+
+/* 气泡下方：统计组 + 操作按钮组，统一左对齐 */
+.msg-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 2px;
+  padding: 0 2px;
+}
+
+.msg-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 统计组为空时（旧消息无统计）不占位 */
+.msg-stats:empty {
+  display: none;
+}
+
+/* 统计组与按钮组之间的分隔线 */
+.msg-stats:not(:empty) + .msg-actions::before {
+  content: '|';
+  color: #e0e0e0;
+  font-size: 11px;
+  margin-right: 6px;
+}
+
+.msg-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.msg-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #bbb;
+  white-space: nowrap;
+}
+
+/* 统计项之间用 | 分割 */
+.msg-meta + .msg-meta::before {
+  content: '|';
+  color: #e0e0e0;
+  margin-right: 6px;
+}
+
+/* 等待首个字符时的生成提示 */
+.msg-generating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #999;
+  font-size: 12px;
+}
+
+.msg-actions .ant-btn {
+  color: #999;
+}
+
+/* 已点赞/点踩的按钮高亮 */
+.msg-actions .ant-btn.rated {
+  color: #595959;
+}
+
+.bubble {
+  max-width: 100%;
   padding: 8px 10px;
   border-radius: 10px;
   line-height: 1.6;
