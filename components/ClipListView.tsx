@@ -28,11 +28,13 @@ import {
 import { toErrorMessage } from '@/utils/errors';
 
 interface Props {
+  /** 视图是否可见；变为可见时刷新列表 */
+  active: boolean;
   /** 点击"对话"按钮时回调，切换到对话标签页 */
   onChat?: (clipId: string) => void;
 }
 
-export function ClipListView({ onChat }: Props) {
+export function ClipListView({ active, onChat }: Props) {
   const [entries, setEntries] = useState<ClipIndexEntry[]>([]);
   const [keyword, setKeyword] = useState('');
   const [tag, setTag] = useState<string>();
@@ -50,8 +52,8 @@ export function ClipListView({ onChat }: Props) {
   }, [keyword, tag]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (active) void refresh();
+  }, [active, refresh]);
 
   const openDetail = async (id: string) => {
     if (expandedId === id) {

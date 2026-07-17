@@ -91,7 +91,10 @@ export default function App() {
         <CurrentPageView />
       </div>
       <div className="app-body" style={view === 'clips' ? undefined : { display: 'none' }}>
-        <ClipListView onChat={(clipId) => dispatchChat({ kind: 'new', clipId })} />
+        <ClipListView
+          active={view === 'clips'}
+          onChat={(clipId) => dispatchChat({ kind: 'new', clipId })}
+        />
       </div>
     </div>
   );
