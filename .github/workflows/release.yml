@@ -35,7 +35,10 @@ jobs:
           sed -i "s/version: '[^']*'/version: '$VERSION'/" wxt.config.ts
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm config set onlyBuiltDependencies '["esbuild","spawn-sync"]' --location project
+          cat .npmrc
+          pnpm install --frozen-lockfile
 
       - name: Type check
         run: pnpm compile
