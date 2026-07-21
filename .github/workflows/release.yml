@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*'
+
+jobs:
+  build:
+    name: Build Chrome Extension
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Sync version from tag
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "TAG=$TAG, VERSION=$VERSION"
+          # Update package.json version
+          jq --arg v "$VERSION" '.version = $v' package.json > package.tmp && mv package.tmp package.json
+          # Update wxt.config.ts version
+          sed -i "s/version: '[^']*'/version: '$VERSION'/" wxt.config.ts
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm compile
+
+      - name: Zip (build + package)
+        run: pnpm zip
+
+      - name: Extract changelog
+        run: |
+          awk -v ver="$VERSION" '
+            BEGIN { found = 0; buf = "" }
+            /^## v/ {
+              if (found) exit
+              if ($0 ~ "^## v" ver "[ ]") { found = 1; next }
+            }
+            found { buf = buf $0 "\n" }
+            END { printf "%s", buf }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          echo "--- Extracted release notes ---"
+          cat /tmp/release-notes.md
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: .output/*.zip
+          body_path: /tmp/release-notes.md
