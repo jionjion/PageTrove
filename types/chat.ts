@@ -9,6 +9,16 @@ export interface ChatMessage {
   };
   /** 生成耗时（毫秒，仅 assistant 消息） */
   elapsedMs?: number;
+  /** 本次回答调用过的 MCP 工具摘要。 */
+  toolCalls?: ChatToolCall[];
+}
+
+export interface ChatToolCall {
+  id: string;
+  serverName: string;
+  toolName: string;
+  status: 'success' | 'error';
+  summary?: string;
 }
 
 /** 针对"当前网页"发起对话时固化的页面上下文 */

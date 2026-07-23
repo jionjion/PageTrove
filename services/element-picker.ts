@@ -1,14 +1,32 @@
 import { browser } from 'wxt/browser';
 import { AppError } from '@/utils/errors';
 import { isUnsupportedUrl } from '@/services/url-utils';
+import {
+  captureCurrentTabRegion,
+  type CapturedImage,
+  type ViewportRegion,
+} from '@/services/screenshot-capture';
+
+export interface PickedPageElement {
+  text?: string;
+  hasVisual: boolean;
+  image?: CapturedImage;
+}
+
+interface RawPickedElement {
+  text?: string;
+  hasVisual: boolean;
+  region: ViewportRegion;
+}
 
 /**
- * 在当前标签页开启"元素选取"模式（类似 F12 的选择元素）。
- * 用户悬停高亮、点击选中某个元素，返回其可见文本；按 Esc 取消返回 null。
+ * 在当前标签页开启元素选取模式。提取可见文字；模型支持识图时，
+ * 选中元素包含图片、图表或其他视觉内容会同时裁剪元素区域截图。
  */
 export async function pickPageElement(
   maxLength: number,
-): Promise<string | null> {
+  includeVisual: boolean,
+): Promise<PickedPageElement | null> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
 
   if (!tab?.id || !tab.url) {
@@ -25,32 +43,36 @@ export async function pickPageElement(
       func: pickElementOnPage,
       args: [maxLength],
     });
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     throw new AppError(
       'PAGE_EXTRACT_FAILED',
       `页面脚本注入失败，请刷新页面后重试（${detail}）`,
     );
   }
 
-  const picked = results[0]?.result as { text: string } | null | undefined;
-  return picked?.text ?? null;
+  const picked = results[0]?.result as RawPickedElement | null | undefined;
+  if (!picked) return null;
+
+  return {
+    text: picked.text,
+    hasVisual: picked.hasVisual,
+    image:
+      includeVisual && picked.hasVisual
+        ? await captureCurrentTabRegion(picked.region)
+        : undefined,
+  };
 }
 
-/**
- * 在页面上下文中执行：高亮悬停元素，点击选中后返回其文本。
- * executeScript 会等待返回的 Promise 完成。
- */
-function pickElementOnPage(maxLength: number): Promise<{ text: string } | null> {
+function pickElementOnPage(maxLength: number): Promise<RawPickedElement | null> {
   return new Promise((resolve) => {
-    const w = window as unknown as { __pagetrovePicking?: boolean };
-    if (w.__pagetrovePicking) {
+    const pageWindow = window as unknown as { __pagetrovePicking?: boolean };
+    if (pageWindow.__pagetrovePicking) {
       resolve(null);
       return;
     }
-    w.__pagetrovePicking = true;
+    pageWindow.__pagetrovePicking = true;
 
-    // 高亮遮罩：pointer-events:none，不影响 elementFromPoint
     const overlay = document.createElement('div');
     overlay.style.cssText = [
       'position:fixed',
@@ -66,11 +88,11 @@ function pickElementOnPage(maxLength: number): Promise<{ text: string } | null> 
 
     let current: Element | null = null;
 
-    const onMove = (e: MouseEvent) => {
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      if (!el || el === current) return;
-      current = el;
-      const rect = el.getBoundingClientRect();
+    const onMove = (event: MouseEvent) => {
+      const element = document.elementFromPoint(event.clientX, event.clientY);
+      if (!element || element === current || element === overlay) return;
+      current = element;
+      const rect = element.getBoundingClientRect();
       overlay.style.display = 'block';
       overlay.style.left = `${rect.left}px`;
       overlay.style.top = `${rect.top}px`;
@@ -85,34 +107,88 @@ function pickElementOnPage(maxLength: number): Promise<{ text: string } | null> 
       document.removeEventListener('mouseup', onSwallow, true);
       document.removeEventListener('keydown', onKey, true);
       overlay.remove();
-      w.__pagetrovePicking = false;
+      pageWindow.__pagetrovePicking = false;
     };
 
-    // 阻止选取时误触发页面自身的按下/抬起行为
-    const onSwallow = (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+    const onSwallow = (event: MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
     };
 
-    const onClick = (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const el = current;
-      cleanup();
-      const text = ((el as HTMLElement | null)?.innerText ?? '')
-        .replace(/\s+\n/g, '\n')
-        .trim()
-        .slice(0, maxLength);
-      resolve(text ? { text } : null);
+    const isVisible = (element: Element): boolean => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width >= 2 &&
+        rect.height >= 2 &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        Number(style.opacity || '1') > 0
+      );
     };
 
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
+    const containsVisualContent = (element: Element): boolean => {
+      const visualSelector = 'img,picture,canvas,svg,video';
+      if (element.matches(visualSelector) && isVisible(element)) return true;
+      if (
+        [...element.querySelectorAll(visualSelector)]
+          .slice(0, 200)
+          .some(isVisible)
+      ) {
+        return true;
+      }
+
+      const candidates = [element, ...element.querySelectorAll('*')].slice(0, 300);
+      return candidates.some((candidate) => {
+        if (!isVisible(candidate)) return false;
+        return getComputedStyle(candidate).backgroundImage !== 'none';
+      });
+    };
+
+    const onClick = (event: MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const element = current;
+      if (!element) {
         cleanup();
         resolve(null);
+        return;
       }
+
+      const rect = element.getBoundingClientRect();
+      const textSource =
+        element instanceof HTMLElement ? element.innerText : element.textContent ?? '';
+      const text = textSource
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+        .slice(0, maxLength);
+      const left = Math.max(0, rect.left);
+      const top = Math.max(0, rect.top);
+      const right = Math.min(innerWidth, rect.right);
+      const bottom = Math.min(innerHeight, rect.bottom);
+      const result: RawPickedElement = {
+        text: text || undefined,
+        hasVisual: containsVisualContent(element),
+        region: {
+          left,
+          top,
+          width: Math.max(1, right - left),
+          height: Math.max(1, bottom - top),
+          viewportWidth: innerWidth,
+          viewportHeight: innerHeight,
+        },
+      };
+      cleanup();
+      resolve(result);
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      cleanup();
+      resolve(null);
     };
 
     document.addEventListener('mousemove', onMove, true);

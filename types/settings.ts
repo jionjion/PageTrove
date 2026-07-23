@@ -13,7 +13,7 @@ export interface ModelCapabilities {
   tools: boolean;
 }
 
-export type McpTransport = 'auto' | 'streamable-http' | 'sse';
+export type McpTransport = 'streamable-http' | 'sse';
 
 export interface McpServerSettings {
   id: string;

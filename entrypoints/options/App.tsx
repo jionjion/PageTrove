@@ -19,11 +19,15 @@ import {
 import {
   DEFAULT_SETTINGS,
   PROVIDERS,
+  getModelCapabilities,
+  modelCapabilityKey,
   type ExtensionSettings,
 } from '@/types/settings';
 import { getSettings, saveSettings } from '@/services/settings-store';
 import { exportAll, importAll } from '@/services/clip-store';
 import { toErrorMessage } from '@/utils/errors';
+import { McpSettings } from '@/components/McpSettings';
+import { validateMcpServer } from '@/services/mcp-client';
 
 import iconUrl from '/icon/48.png';
 
@@ -52,6 +56,19 @@ export default function App() {
     setSettings((prev) => ({ ...prev, ...patch }));
 
   const preset = PROVIDERS.find((p) => p.id === settings.provider);
+  const capabilities = getModelCapabilities(settings);
+
+  const updateCurrentModelCapabilities = (
+    patch: Partial<typeof capabilities>,
+  ) => {
+    const key = modelCapabilityKey(settings.provider, settings.model);
+    update({
+      modelCapabilities: {
+        ...settings.modelCapabilities,
+        [key]: { ...capabilities, ...patch },
+      },
+    });
+  };
 
   const handleProviderChange = (id: string) => {
     const next = PROVIDERS.find((p) => p.id === id);
@@ -66,6 +83,9 @@ export default function App() {
 
   const handleSave = async () => {
     try {
+      settings.mcpServers
+        .filter((server) => server.enabled)
+        .forEach(validateMcpServer);
       await saveSettings(settings);
       message.success('设置已保存');
     } catch (e) {
@@ -133,7 +153,10 @@ export default function App() {
             Key 只保存在本机浏览器（browser.storage.local）中，仅用于本插件调用你选择的
             AI 接口，不会同步到云端，也不会出现在导出数据里。建议使用独立的、设置了额度上限的
             Key。
-            {preset?.keySite ? `申请地址：${preset.keySite}` : ''}
+            <br/>
+            {preset?.keySite && (
+              <>申请地址：<a href={`https://${preset.keySite}`} target="_blank" rel="noopener noreferrer">{preset.keySite}</a></>
+            )}
           </Hint>
 
           <Label>模型</Label>
@@ -155,15 +178,48 @@ export default function App() {
 
         {/* -------- 网页采集 -------- */}
         <Card title="网页采集" size="small">
-          <Checkbox
-            checked={settings.includeSelectedText}
-            onChange={(e) => update({ includeSelectedText: e.target.checked })}
-          >
-            包含当前选中文字
-          </Checkbox>
+          <Space direction="vertical" size={8} style={{ display: 'flex' }}>
+            <Checkbox
+              checked={settings.includeSelectedText}
+              onChange={(e) => update({ includeSelectedText: e.target.checked })}
+            >
+              包含当前选中文字
+            </Checkbox>
+            <Checkbox
+              checked={capabilities.vision}
+              disabled={!settings.model.trim()}
+              onChange={(e) =>
+                updateCurrentModelCapabilities({ vision: e.target.checked })
+              }
+            >
+              当前模型支持图片输入
+            </Checkbox>
+            <Checkbox
+              checked={capabilities.tools}
+              disabled={!settings.model.trim()}
+              onChange={(e) =>
+                updateCurrentModelCapabilities({ tools: e.target.checked })
+              }
+            >
+              当前模型支持工具调用
+            </Checkbox>
+          </Space>
           <Hint>
-            插件只会在你主动点击"AI 整理当前网页"时读取页面内容，默认不会读取输入框、密码、Cookie
-            或本地存储。页面内容只会发送给你自己配置的 AI 接口。
+            当前能力配置对应“{preset?.label ?? settings.provider} / {settings.model || '未选择模型'}”。
+            切换模型后会分别记忆。图片只在你主动截图或选取视觉元素时发送；页面内容不会读取密码、Cookie
+            或本地存储。
+          </Hint>
+        </Card>
+
+        {/* -------- MCP 工具 -------- */}
+        <Card title="MCP 工具" size="small">
+          <McpSettings
+            value={settings.mcpServers}
+            onChange={(mcpServers) => update({ mcpServers })}
+          />
+          <Hint>
+            仅启用的服务和工具会提供给支持工具调用的当前模型。Token 与请求头只保存在本机，
+            不包含在收藏导出中。
           </Hint>
         </Card>
 
