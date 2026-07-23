@@ -17,7 +17,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 10.34.5
 
       - uses: actions/setup-node@v4
         with:
@@ -29,10 +29,8 @@ jobs:
           TAG="${{ github.ref_name }}"
           VERSION="${TAG#v}"
           echo "TAG=$TAG, VERSION=$VERSION"
-          # Update package.json version
+          # wxt.config.ts reads this value when generating manifest.json
           jq --arg v "$VERSION" '.version = $v' package.json > package.tmp && mv package.tmp package.json
-          # Update wxt.config.ts version
-          sed -i "s/version: '[^']*'/version: '$VERSION'/" wxt.config.ts
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -51,7 +49,7 @@ jobs:
             BEGIN { found = 0; buf = "" }
             /^## v/ {
               if (found) exit
-              if ($0 ~ "^## v" ver "[ ]") { found = 1; next }
+              if ($0 == "## v" ver) { found = 1; next }
             }
             found { buf = buf $0 "\n" }
             END { printf "%s", buf }
