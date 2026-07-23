@@ -524,42 +524,88 @@ body {
 .tool-activity-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   width: 100%;
   margin-bottom: 4px;
 }
 
-.tool-activity {
-  display: grid;
-  grid-template-columns: auto auto minmax(0, auto) minmax(0, 1fr);
+.tool-activity-header {
+  display: flex;
   align-items: center;
   gap: 5px;
+  align-self: flex-start;
   max-width: 100%;
-  padding: 5px 8px;
-  border: 1px solid #e8e8e8;
+  padding: 4px 8px;
+  border: 1px solid #ececec;
   border-radius: 6px;
   background: #fafafa;
   color: #666;
   font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
 }
 
-.tool-activity.success {
-  border-color: #b7eb8f;
-  background: #f6ffed;
+.tool-activity-header:hover {
+  background: #f0f0f0;
+}
+
+.tool-activity-header .anticon-check-circle {
+  color: #52c41a;
+}
+
+.tool-activity-header .anticon-close-circle {
+  color: #ff4d4f;
+}
+
+.tool-activity-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 100%;
+  padding: 1px 8px 3px 22px;
+  color: #999;
+  font-size: 11px;
+}
+
+.tool-activity-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tool-activity.success .anticon-check-circle {
+  color: #52c41a;
 }
 
 .tool-activity.error {
-  border-color: #ffccc7;
-  background: #fff2f0;
+  color: #ff4d4f;
 }
 
 .tool-activity-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tool-activity-summary {
-  overflow: hidden;
-  color: #999;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-height: 200px;
+  margin: 0;
+  padding: 6px 8px;
+  overflow: auto;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  background: #fbfbfb;
+  color: #888;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }

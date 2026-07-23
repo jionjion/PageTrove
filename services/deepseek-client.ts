@@ -497,7 +497,7 @@ export async function streamChat(
           serverName: warning.serverName,
           toolName: '连接服务',
           status: 'error',
-          summary: warning.message.slice(0, 500),
+          summary: warning.message,
         };
         completedCalls.push(call);
         options.onToolActivity?.(call);
@@ -570,7 +570,7 @@ export async function streamChat(
           completed = {
             ...activityBase,
             status: 'success',
-            summary: toolResult.slice(0, 500),
+            summary: toolResult,
           };
         } catch (error) {
           toolResult = `工具调用失败：${
@@ -579,7 +579,7 @@ export async function streamChat(
           completed = {
             ...activityBase,
             status: 'error',
-            summary: toolResult.slice(0, 500),
+            summary: toolResult,
           };
         }
 
