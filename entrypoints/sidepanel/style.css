@@ -380,3 +380,135 @@ body {
   align-items: center;
   gap: 8px;
 }
+/* MCP 设置 */
+.mcp-server {
+  padding: 12px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.mcp-server-title {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+
+.mcp-test-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.mcp-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.mcp-tool-list .ant-checkbox-wrapper {
+  align-items: flex-start;
+}
+
+.mcp-tool-name {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+
+.mcp-tool-description {
+  display: block;
+  margin-top: 2px;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 临时截图预览 */
+.screenshot-preview {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  align-self: flex-start;
+  margin-bottom: 8px;
+}
+
+.screenshot-preview img {
+  display: block;
+  max-width: 200px;
+  max-height: 120px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.screenshot-preview .screenshot-preview-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 50%;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* MCP 工具调用状态 */
+.tool-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.tool-activity {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  background: #fafafa;
+  color: #666;
+  font-size: 11px;
+}
+
+.tool-activity.success {
+  border-color: #b7eb8f;
+  background: #f6ffed;
+}
+
+.tool-activity.error {
+  border-color: #ffccc7;
+  background: #fff2f0;
+}
+
+.tool-activity-name {
+  white-space: nowrap;
+}
+
+.tool-activity-summary {
+  overflow: hidden;
+  color: #999;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
