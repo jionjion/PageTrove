@@ -1,4 +1,5 @@
 import { defineConfig } from 'wxt';
+import packageJson from './package.json';
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
@@ -6,7 +7,7 @@ export default defineConfig({
   manifest: {
     name: '拾页',
     description: '拾页 - 拾取互联网有价值的碎片',
-    version: '0.1.0',
+    version: packageJson.version,
 
     permissions: ['activeTab', 'scripting', 'storage', 'tabs', 'sidePanel'],
 
