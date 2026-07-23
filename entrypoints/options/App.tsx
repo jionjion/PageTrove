@@ -90,8 +90,10 @@ export default function App() {
 
   const handleImport = async (file: File) => {
     try {
-      const count = await importAll(await file.text());
-      message.success(`成功导入 ${count} 条收藏（已跳过重复项）`);
+      const result = await importAll(await file.text());
+      message.success(
+        `成功导入 ${result.imported} 条，跳过重复 ${result.duplicates} 条，无效数据 ${result.invalid} 条`,
+      );
     } catch (e) {
       message.error(toErrorMessage(e));
     }
