@@ -106,7 +106,6 @@ export function McpSettings({ value, onChange }: Props) {
                 }
               />
               <Switch
-                size="small"
                 checked={server.enabled}
                 checkedChildren="启用"
                 unCheckedChildren="停用"
@@ -118,7 +117,6 @@ export function McpSettings({ value, onChange }: Props) {
               >
                 <Button
                   type="text"
-                  size="small"
                   danger
                   title="删除"
                   icon={<DeleteOutlined />}
