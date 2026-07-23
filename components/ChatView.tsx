@@ -3,11 +3,10 @@ import { Alert, Button, Input, Select } from 'antd';
 import {
   AimOutlined,
   CaretDownOutlined,
+  CaretRightOutlined,
   CaretUpOutlined,
-  CheckCircleOutlined,
   CheckOutlined,
   ClockCircleOutlined,
-  CloseCircleOutlined,
   CloseOutlined,
   CopyOutlined,
   DislikeFilled,
@@ -66,29 +65,45 @@ function ToolActivityList({
 }: {
   calls: (ChatToolCall | ChatToolActivity)[];
 }) {
+  const [expanded, setExpanded] = useState(false);
   if (calls.length === 0) return null;
+  const running = calls.find((call) => call.status === 'running');
   return (
     <div className="tool-activity-list">
-      {calls.map((call) => (
-        <div className={`tool-activity ${call.status}`} key={call.id}>
-          {call.status === 'running' ? (
-            <LoadingOutlined spin />
-          ) : call.status === 'success' ? (
-            <CheckCircleOutlined />
-          ) : (
-            <CloseCircleOutlined />
-          )}
-          <ToolOutlined />
-          <span className="tool-activity-name">
-            {call.serverName} · {call.toolName}
-          </span>
-          {call.summary && (
-            <span className="tool-activity-summary" title={call.summary}>
-              {call.summary}
+      <button
+        type="button"
+        className="tool-activity-header"
+        onClick={() => setExpanded((current) => !current)}
+      >
+        {expanded ? <CaretDownOutlined /> : <CaretRightOutlined />}
+        <ToolOutlined />
+        {running ? (
+          <>
+            <span className="tool-activity-title">
+              正在调用 {running.serverName} · {running.toolName}…
             </span>
-          )}
-        </div>
-      ))}
+            <LoadingOutlined spin />
+          </>
+        ) : (
+          <span className="tool-activity-title">
+            已调用 {calls.length} 个工具
+          </span>
+        )}
+      </button>
+      {expanded &&
+        calls.map((call) => (
+          <div className={`tool-activity ${call.status}`} key={call.id}>
+            <div className="tool-activity-row">
+              {call.status === 'running' && <LoadingOutlined spin />}
+              <span className="tool-activity-name">
+                {call.serverName} · {call.toolName}
+              </span>
+            </div>
+            {call.summary && (
+              <pre className="tool-activity-summary">{call.summary}</pre>
+            )}
+          </div>
+        ))}
     </div>
   );
 }
