@@ -206,8 +206,8 @@ ${ctx.content || '（内容为空）'}`;
 
 /** 只发送最近的若干轮，避免上下文无限增长。 */
 const MAX_HISTORY_MESSAGES = 12;
-const MAX_TOOL_ROUNDS = 4;
-const MAX_TOOL_CALLS = 12;
+const MAX_TOOL_ROUNDS = 16;
+const MAX_TOOL_CALLS = 40;
 
 type TextPart = { type: 'text'; text: string };
 type ImagePart = {
@@ -454,6 +454,17 @@ function parseToolArguments(value: string): Record<string, unknown> {
   }
 }
 
+function normalizeToolArgs(args: Record<string, unknown>): string {
+  return JSON.stringify(
+    Object.keys(args)
+      .sort()
+      .reduce<Record<string, unknown>>((result, key) => {
+        result[key] = args[key];
+        return result;
+      }, {}),
+  );
+}
+
 /**
  * 流式对话，支持当前请求的一张区域截图和 MCP 工具调用循环。
  * 截图仅存在于本次请求参数，不会写入聊天记录。
@@ -510,6 +521,7 @@ export async function streamChat(
     const serverMap = new Map(
       settings.mcpServers.map((server) => [server.id, server]),
     );
+    const previousToolResults = new Map<string, string>();
     let totalUsage: ChatStreamResult['usage'];
     let totalToolCalls = 0;
 
@@ -562,11 +574,23 @@ export async function streamChat(
           if (!definition) throw new Error('模型请求了未启用的工具');
           const server = serverMap.get(definition.serverId);
           if (!server?.enabled) throw new Error('MCP 服务已停用');
-          toolResult = await callMcpTool(
-            server,
-            definition.toolName,
-            parseToolArguments(requested.function.arguments),
-          );
+
+          const parsedArgs = parseToolArguments(requested.function.arguments);
+          const toolCallKey = `${definition.serverId}:${definition.toolName}:${normalizeToolArgs(parsedArgs)}`;
+          const previousResult = previousToolResults.get(toolCallKey);
+
+          if (previousResult) {
+            toolResult = [
+              '该工具刚刚已用相同参数执行过一次，以下是上次结果。',
+              '如需继续，请基于该结果直接回答，除非用户明确要求再次执行。',
+              '',
+              previousResult,
+            ].join('\n');
+          } else {
+            toolResult = await callMcpTool(server, definition.toolName, parsedArgs);
+            previousToolResults.set(toolCallKey, toolResult);
+          }
+
           completed = {
             ...activityBase,
             status: 'success',

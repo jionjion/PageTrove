@@ -76,6 +76,8 @@ export interface ExtensionSettings {
   /** 以 provider::model 为键，分别保存每个模型的能力覆盖值。 */
   modelCapabilities: Record<string, ModelCapabilities>;
   mcpServers: McpServerSettings[];
+  /** MCP 工具执行时是否打印详细日志（工具名称、参数、结果） */
+  mcpVerboseLog: boolean;
 }
 
 const BUILTIN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
@@ -112,4 +114,5 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   includeSelectedText: true,
   modelCapabilities: {},
   mcpServers: [],
+  mcpVerboseLog: true,
 };

@@ -549,14 +549,6 @@ body {
   background: #f0f0f0;
 }
 
-.tool-activity-header .anticon-check-circle {
-  color: #52c41a;
-}
-
-.tool-activity-header .anticon-close-circle {
-  color: #ff4d4f;
-}
-
 .tool-activity-title {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -578,10 +570,6 @@ body {
   align-items: center;
   gap: 5px;
   min-width: 0;
-}
-
-.tool-activity.success .anticon-check-circle {
-  color: #52c41a;
 }
 
 .tool-activity.error {
