@@ -9,13 +9,13 @@ import {
   Menu,
   Select,
   Space,
+  Switch,
   Typography,
 } from 'antd';
 import {
   ApiOutlined,
   DatabaseOutlined,
   DownloadOutlined,
-  GlobalOutlined,
   RobotOutlined,
   SaveOutlined,
   UploadOutlined,
@@ -126,7 +126,6 @@ export default function App() {
 
   const menuItems = [
     { key: 'model', icon: <RobotOutlined />, label: '模型配置' },
-    { key: 'collect', icon: <GlobalOutlined />, label: '网页采集' },
     { key: 'mcp', icon: <ApiOutlined />, label: 'MCP 工具' },
     { key: 'data', icon: <DatabaseOutlined />, label: '数据管理' },
   ];
@@ -137,41 +136,50 @@ export default function App() {
         模型配置
       </Typography.Title>
       <Label>供应商</Label>
-          <Select
-            style={{ width: '100%' }}
-            value={settings.provider}
-            onChange={handleProviderChange}
-            options={PROVIDERS.map((p) => ({ value: p.id, label: p.label }))}
-          />
-          <Hint>
-            先选择供应商，Base URL 和模型会自动填好，再填入对应的 API Key。
-          </Hint>
+      <Select
+        style={{ width: '100%' }}
+        value={settings.provider}
+        onChange={handleProviderChange}
+        options={PROVIDERS.map((p) => ({ value: p.id, label: p.label }))}
+      />
+      <Hint>
+        先选择供应商，Base URL 和模型会自动填好，再填入对应的 API Key。
+      </Hint>
 
-          <Label>API Key</Label>
-          <Input.Password
-            placeholder="sk-…"
-            autoComplete="off"
-            value={settings.apiKey}
-            onChange={(e) => update({ apiKey: e.target.value })}
-          />
-          <Hint>
-            Key 只保存在本机浏览器（browser.storage.local）中，仅用于本插件调用你选择的
-            AI 接口，不会同步到云端，也不会出现在导出数据里。建议使用独立的、设置了额度上限的
-            Key。
-            <br/>
-            {preset?.keySite && (
-              <>申请地址：<a href={`https://${preset.keySite}`} target="_blank" rel="noopener noreferrer">{preset.keySite}</a></>
-            )}
-          </Hint>
+      <Label>API Key</Label>
+      <Input.Password
+        placeholder="sk-…"
+        autoComplete="off"
+        value={settings.apiKey}
+        onChange={(e) => update({ apiKey: e.target.value })}
+      />
+      <Hint>
+        Key 只保存在本机浏览器（browser.storage.local）中，仅用于本插件调用你选择的
+        AI 接口，不会同步到云端，也不会出现在导出数据里。建议使用独立的、设置了额度上限的
+        Key。
+        <br />
+        {preset?.keySite && (
+          <>
+            申请地址：
+            <a
+              href={`https://${preset.keySite}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {preset.keySite}
+            </a>
+          </>
+        )}
+      </Hint>
 
-          <Label>模型</Label>
-          <AutoComplete
-            style={{ width: '100%' }}
-            placeholder="模型名称"
-            value={settings.model}
-            onChange={(value) => update({ model: value })}
-            options={(preset?.models ?? []).map((m) => ({ value: m }))}
-          />
+      <Label>模型</Label>
+      <AutoComplete
+        style={{ width: '100%' }}
+        placeholder="模型名称"
+        value={settings.model}
+        onChange={(value) => update({ model: value })}
+        options={(preset?.models ?? []).map((m) => ({ value: m }))}
+      />
 
       <Label>Base URL</Label>
       <Input
@@ -179,40 +187,34 @@ export default function App() {
         value={settings.baseUrl}
         onChange={(e) => update({ baseUrl: e.target.value })}
       />
-    </>
-  );
 
-  const collectSection = (
-    <>
-      <Typography.Title level={5} className="options-section-title">
-        网页采集
-      </Typography.Title>
+      <Label>网页采集</Label>
       <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-            <Checkbox
-              checked={settings.includeSelectedText}
-              onChange={(e) => update({ includeSelectedText: e.target.checked })}
-            >
-              包含当前选中文字
-            </Checkbox>
-            <Checkbox
-              checked={capabilities.vision}
-              disabled={!settings.model.trim()}
-              onChange={(e) =>
-                updateCurrentModelCapabilities({ vision: e.target.checked })
-              }
-            >
-              当前模型支持图片输入
-            </Checkbox>
-            <Checkbox
-              checked={capabilities.tools}
-              disabled={!settings.model.trim()}
-              onChange={(e) =>
-                updateCurrentModelCapabilities({ tools: e.target.checked })
-              }
-            >
-              当前模型支持工具调用
-            </Checkbox>
-          </Space>
+        <Checkbox
+          checked={settings.includeSelectedText}
+          onChange={(e) => update({ includeSelectedText: e.target.checked })}
+        >
+          包含当前选中文字
+        </Checkbox>
+        <Checkbox
+          checked={capabilities.vision}
+          disabled={!settings.model.trim()}
+          onChange={(e) =>
+            updateCurrentModelCapabilities({ vision: e.target.checked })
+          }
+        >
+          当前模型支持图片输入
+        </Checkbox>
+        <Checkbox
+          checked={capabilities.tools}
+          disabled={!settings.model.trim()}
+          onChange={(e) =>
+            updateCurrentModelCapabilities({ tools: e.target.checked })
+          }
+        >
+          当前模型支持工具调用
+        </Checkbox>
+      </Space>
       <Hint>
         当前能力配置对应“{preset?.label ?? settings.provider} / {settings.model || '未选择模型'}”。
         切换模型后会分别记忆。图片只在你主动截图或选取视觉元素时发送；页面内容不会读取密码、Cookie
@@ -226,13 +228,26 @@ export default function App() {
       <Typography.Title level={5} className="options-section-title">
         MCP 工具
       </Typography.Title>
+      <Label>执行日志</Label>
+      <Space style={{ marginBottom: 8 }}>
+        <Switch
+          checked={settings.mcpVerboseLog}
+          onChange={(checked) => update({ mcpVerboseLog: checked })}
+        />
+        <Typography.Text>
+          {settings.mcpVerboseLog ? '详细日志' : '简要日志'}
+        </Typography.Text>
+      </Space>
+      <Hint>
+        开启后显示 MCP 工具调用的详细过程，包括工具名称、参数与返回结果；关闭后只显示本次最终执行了 N 个工具。
+      </Hint>
       <McpSettings
         value={settings.mcpServers}
         onChange={(mcpServers) => update({ mcpServers })}
       />
       <Hint>
-        仅启用的服务和工具会提供给支持工具调用的当前模型。<br/>
-          Token 与请求头只保存在本机， 不包含在收藏导出中。
+        仅启用的服务和工具会提供给支持工具调用的当前模型。<br />
+        Token 与请求头只保存在本机，不包含在收藏导出中。
       </Hint>
     </>
   );
@@ -272,7 +287,6 @@ export default function App() {
 
   const sections: Record<string, React.ReactNode> = {
     model: modelSection,
-    collect: collectSection,
     mcp: mcpSection,
     data: dataSection,
   };

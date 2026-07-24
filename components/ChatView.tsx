@@ -62,35 +62,43 @@ interface Props {
 
 function ToolActivityList({
   calls,
+  verbose,
 }: {
   calls: (ChatToolCall | ChatToolActivity)[];
+  verbose: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   if (calls.length === 0) return null;
   const running = calls.find((call) => call.status === 'running');
+  const canExpand = verbose;
   return (
     <div className="tool-activity-list">
       <button
         type="button"
         className="tool-activity-header"
-        onClick={() => setExpanded((current) => !current)}
+        onClick={() => canExpand && setExpanded((current) => !current)}
       >
-        {expanded ? <CaretDownOutlined /> : <CaretRightOutlined />}
+        {canExpand ? (
+          expanded ? <CaretDownOutlined /> : <CaretRightOutlined />
+        ) : (
+          <span style={{ width: 14, display: 'inline-block' }} />
+        )}
         <ToolOutlined />
         {running ? (
           <>
             <span className="tool-activity-title">
-              正在调用 {running.serverName} · {running.toolName}…
+              {verbose
+                ? `正在调用 ${running.serverName} · ${running.toolName}…`
+                : `正在调用工具（已执行 ${calls.filter((call) => call.status !== 'running').length} 个）…`}
             </span>
             <LoadingOutlined spin />
           </>
         ) : (
-          <span className="tool-activity-title">
-            已调用 {calls.length} 个工具
-          </span>
+          <span className="tool-activity-title">已调用 {calls.length} 个工具</span>
         )}
       </button>
-      {expanded &&
+      {verbose &&
+        expanded &&
         calls.map((call) => (
           <div className={`tool-activity ${call.status}`} key={call.id}>
             <div className="tool-activity-row">
@@ -520,7 +528,12 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
         {(session?.messages ?? []).map((message, index) => (
           <div key={index} className={`msg-group ${message.role}`}>
             <div className="msg-time">{formatTime(message.createdAt)}</div>
-            {message.toolCalls && <ToolActivityList calls={message.toolCalls} />}
+            {message.toolCalls && (
+              <ToolActivityList
+                calls={message.toolCalls}
+                verbose={chatSettings?.mcpVerboseLog ?? true}
+              />
+            )}
             <div className={`bubble ${message.role}`}>
               {message.role === 'assistant' ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -599,7 +612,10 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
         ))}
         {(streaming !== undefined || toolActivities.length > 0) && (
           <div className="msg-group assistant">
-            <ToolActivityList calls={toolActivities} />
+            <ToolActivityList
+              calls={toolActivities}
+              verbose={chatSettings?.mcpVerboseLog ?? true}
+            />
             <div className="bubble assistant">
               {streaming ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
