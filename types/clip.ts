@@ -36,7 +36,8 @@ export interface ClipIndexEntry {
 
 export interface ClipQuery {
   keyword?: string;
-  tag?: string;
+  /** 多选标签过滤，命中任一标签即保留 */
+  tags?: string[];
   domain?: string;
   sort?: 'createdAt_desc' | 'createdAt_asc';
 }
