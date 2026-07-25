@@ -31,6 +31,29 @@ const SYSTEM_PROMPT = `你是一个"有趣网站收藏整理助手"。
 
 confidence 为0到1之间的小数。`;
 
+const SYSTEM_PROMPT_WITH_CONTENT = `你是一个"有趣网站收藏整理助手"。
+
+你的任务是根据用户提供的网页快照，整理这个网站值得收藏的原因，并输出结构化 json 结果。
+
+要求：
+
+1. 只能依据输入内容，不得虚构网页功能。
+2. 如果网页信息不足，应明确体现"信息不足"。
+3. 摘要用于让用户快速了解这个收藏：说明网站是什么、有什么内容、为什么值得收藏，控制在100个汉字以内。
+4. 标签输出3至5个。
+5. content 为清洗后的正文：保留文章主体内容和原文表述，去掉导航、广告、推荐、评论等噪音；不做概括改写。正文本身很短或没有文章主体时输出空字符串。
+6. summary 和 tags 不要输出 Markdown；content 保持纯文本段落，用换行分段。
+7. 只输出符合下面结构的 json，不要输出其他内容：
+
+{
+  "summary": "摘要",
+  "tags": ["标签1", "标签2", "标签3"],
+  "content": "清洗后的正文",
+  "confidence": 0.85
+}
+
+confidence 为0到1之间的小数。`;
+
 function buildUserPrompt(snapshot: PageSnapshot, note: string): string {
   return `请整理下面的网页快照，输出 json。
 
@@ -57,6 +80,7 @@ const LIMITS = {
   summary: 200,
   tagMax: 5,
   tagLength: 20,
+  content: 200_000,
 };
 
 function cleanStringArray(value: unknown, maxItems: number, maxLength: number): string[] {
@@ -90,9 +114,15 @@ function validateAnalyzeResult(raw: unknown): AnalyzeResult {
       ? Math.min(1, Math.max(0, data.confidence))
       : 0.5;
 
+  const content =
+    typeof data.content === 'string'
+      ? data.content.trim().slice(0, LIMITS.content) || undefined
+      : undefined;
+
   return {
     summary,
     tags,
+    content,
     confidence,
   };
 }
@@ -103,7 +133,7 @@ async function requestChatCompletion(
   note: string,
 ): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60_000);
+  const timer = setTimeout(() => controller.abort(), 180_000);
 
   let response: Response;
   try {
@@ -118,7 +148,12 @@ async function requestChatCompletion(
         body: JSON.stringify({
           model: settings.model,
           messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
+            {
+              role: 'system',
+              content: settings.refineContent
+                ? SYSTEM_PROMPT_WITH_CONTENT
+                : SYSTEM_PROMPT,
+            },
             { role: 'user', content: buildUserPrompt(snapshot, note) },
           ],
           response_format: { type: 'json_object' },
@@ -181,13 +216,42 @@ export async function analyzePage(
 
 /* ------------------------- 网页对话（流式） ------------------------- */
 
-export interface ChatContext {
+export interface ResolvedChatSource {
+  id: string;
+  /** 引用编号：S1、S2…… */
+  citation: string;
   title: string;
   url: string;
   content: string;
 }
 
+export interface ChatContext {
+  title: string;
+  url: string;
+  content: string;
+  /** 多来源探究会话解析后的来源列表；存在时使用多来源 Prompt。 */
+  sources?: ResolvedChatSource[];
+}
+
+const MULTI_SOURCE_PROMPT = `你是"拾页"的多来源研究助手。
+
+1. 只根据提供的资料回答；资料不足时明确说明。
+2. 每个来自资料的事实或结论，使用 [S1]、[S2] 标明来源。
+3. 不得引用没有提供的来源，不得伪造引用。
+4. 如果不同来源存在冲突，分别陈述并标明来源。
+5. 可以做综合归纳，但要明确说明这是综合判断。
+6. 回答使用中文，简洁清晰。
+7. MCP 工具得到的新信息不能伪装成页面来源；如使用工具，应单独说明。`;
+
 function buildChatSystemPrompt(ctx: ChatContext): string {
+  if (ctx.sources && ctx.sources.length > 0) {
+    const blocks = ctx.sources.map(
+      (source) =>
+        `[${source.citation}]\n标题：${source.title}\n地址：${source.url}\n内容：\n${source.content || '（内容为空）'}`,
+    );
+    return `${MULTI_SOURCE_PROMPT}\n\n以下是本次可用的资料：\n\n${blocks.join('\n\n')}`;
+  }
+
   return `你是"拾页"的网页问答助手。请基于下面的网页内容回答用户的问题。
 
 要求：
