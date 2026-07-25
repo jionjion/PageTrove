@@ -1,4 +1,5 @@
 import { browser } from 'wxt/browser';
+import { Readability } from '@mozilla/readability';
 import type { PageSnapshot } from '@/types/page-snapshot';
 import { AppError } from '@/utils/errors';
 import { isUnsupportedUrl } from '@/services/url-utils';
@@ -8,13 +9,61 @@ export interface ExtractOptions {
   includeSelectedText: boolean;
 }
 
+/** Readability 结果短于该长度时视为提取失败（可能只抓到片段） */
+const MIN_READABLE_LENGTH = 200;
+
+/**
+ * 用 Readability 从页面 HTML 中提取文章主体文本，
+ * 去掉导航、广告、推荐位等噪音。失败时返回 undefined。
+ */
+function extractReadableText(
+  html: string,
+  maxLength: number,
+): string | undefined {
+  if (typeof DOMParser === 'undefined') return undefined;
+  try {
+    // DOMParser 不会执行脚本或加载资源，仅做离线解析。
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const article = new Readability(doc).parse();
+    const text = article?.textContent
+      ?.replace(/[ \t\u00a0]+/g, ' ')
+      .replace(/\s*\n\s*/g, '\n')
+      .trim();
+    if (text && text.length >= MIN_READABLE_LENGTH) {
+      return text.slice(0, maxLength);
+    }
+  } catch {
+    // 解析失败时退回 innerText 提取结果。
+  }
+  return undefined;
+}
+
 export async function extractCurrentPage(
   options: ExtractOptions,
 ): Promise<PageSnapshot> {
-  const [tab] = await browser.tabs.query({
-    active: true,
-    currentWindow: true,
-  });
+  return extractPage(options);
+}
+
+/**
+ * 采集指定标签页（未传 tabId 时为当前活动标签页）的页面快照。
+ */
+export async function extractPage(
+  options: ExtractOptions,
+  tabId?: number,
+): Promise<PageSnapshot> {
+  let tab: Browser.tabs.Tab | undefined;
+  if (tabId !== undefined) {
+    try {
+      tab = await browser.tabs.get(tabId);
+    } catch {
+      throw new AppError('PAGE_EXTRACT_FAILED', '目标标签页已关闭');
+    }
+  } else {
+    [tab] = await browser.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+  }
 
   if (!tab?.id || !tab.url) {
     throw new AppError('PAGE_EXTRACT_FAILED', '无法获取当前网页');
@@ -40,16 +89,22 @@ export async function extractCurrentPage(
   }
 
   const snapshot = results[0]?.result as
-    | Omit<PageSnapshot, 'favicon'>
+    | (Omit<PageSnapshot, 'favicon'> & { pageHtml?: string })
     | undefined;
 
   if (!snapshot) {
     throw new AppError('PAGE_EXTRACT_FAILED');
   }
 
+  const { pageHtml, ...rest } = snapshot;
+  const readableText = pageHtml
+    ? extractReadableText(pageHtml, options.maxContentLength)
+    : undefined;
+
   return {
-    ...snapshot,
-    selectedText: options.includeSelectedText ? snapshot.selectedText : undefined,
+    ...rest,
+    mainText: readableText ?? rest.mainText,
+    selectedText: options.includeSelectedText ? rest.selectedText : undefined,
     favicon: tab.favIconUrl,
   };
 }
@@ -89,6 +144,11 @@ function collectPageData(maxLength: number) {
       .trim()
       .slice(0, maxLength) || undefined;
 
+  // 返回整页 HTML，供扩展侧用 Readability 提取文章主体（超大页面跳过）。
+  const outerHtml = document.documentElement.outerHTML;
+  const pageHtml =
+    outerHtml.length <= 3_000_000 ? outerHtml : undefined;
+
   return {
     url: location.href,
     canonicalUrl: getMeta('link[rel="canonical"]'),
@@ -107,6 +167,7 @@ function collectPageData(maxLength: number) {
 
     selectedText,
     mainText,
+    pageHtml,
 
     author: getMeta('meta[name="author"]', 'meta[property="article:author"]'),
 

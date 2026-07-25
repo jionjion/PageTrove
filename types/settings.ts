@@ -73,6 +73,8 @@ export interface ExtensionSettings {
 
   maxContentLength: number;
   includeSelectedText: boolean;
+  /** 整理时让 AI 顺带清洗正文（更耗 token，默认关闭） */
+  refineContent: boolean;
   /** 以 provider::model 为键，分别保存每个模型的能力覆盖值。 */
   modelCapabilities: Record<string, ModelCapabilities>;
   mcpServers: McpServerSettings[];
@@ -112,6 +114,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
 
   maxContentLength: 12_000,
   includeSelectedText: true,
+  refineContent: false,
   modelCapabilities: {},
   mcpServers: [],
   mcpVerboseLog: true,

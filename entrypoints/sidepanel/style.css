@@ -290,7 +290,7 @@ body {
   border-radius: 10px;
   line-height: 1.6;
   font-size: 13px;
-  white-space: pre-wrap;
+  white-space: normal; /* Markdown 自行处理段落 */
   word-break: break-word;
 }
 
@@ -306,29 +306,28 @@ body {
   background: #fff;
   border: 1px solid #f0f0f0;
   border-bottom-left-radius: 2px;
-  white-space: normal; /* Markdown 自行处理段落 */
 }
 
 /* 气泡内 Markdown 样式 */
-.bubble.assistant > :first-child {
+.bubble > :first-child {
   margin-top: 0;
 }
 
-.bubble.assistant > :last-child {
+.bubble > :last-child {
   margin-bottom: 0;
 }
 
-.bubble.assistant p {
+.bubble p {
   margin: 6px 0;
 }
 
-.bubble.assistant ul,
-.bubble.assistant ol {
+.bubble ul,
+.bubble ol {
   margin: 6px 0;
   padding-left: 18px;
 }
 
-.bubble.assistant pre {
+.bubble pre {
   overflow-x: auto;
   background: #f6f8fa;
   padding: 8px;
@@ -337,52 +336,97 @@ body {
   margin: 6px 0;
 }
 
-.bubble.assistant code {
+.bubble code {
   background: #f0f0f0;
   padding: 1px 4px;
   border-radius: 4px;
   font-size: 12px;
 }
 
-.bubble.assistant pre code {
+.bubble pre code {
   background: none;
   padding: 0;
 }
 
-.bubble.assistant blockquote {
+.bubble blockquote {
   margin: 6px 0;
   padding: 2px 10px;
   border-left: 3px solid #d9d9d9;
   color: #666;
 }
 
-.bubble.assistant h1,
-.bubble.assistant h2,
-.bubble.assistant h3,
-.bubble.assistant h4 {
+.bubble h1,
+.bubble h2,
+.bubble h3,
+.bubble h4 {
   font-size: 14px;
   margin: 8px 0 4px;
 }
 
-.bubble.assistant table {
+.bubble table {
   border-collapse: collapse;
   margin: 6px 0;
   display: block;
   overflow-x: auto;
 }
 
-.bubble.assistant th,
-.bubble.assistant td {
+.bubble th,
+.bubble td {
   border: 1px solid #e5e5e5;
   padding: 4px 8px;
 }
 
-.bubble.assistant img {
+.bubble img {
   max-width: 100%;
 }
 
-.bubble.assistant a {
+.bubble a {
   word-break: break-all;
+}
+
+/* 回答中的 [S1] 引用徽标链接 */
+.bubble .citation-link {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: #f0f5ff;
+  color: #1677ff;
+  font-size: 10px;
+  line-height: 16px;
+  vertical-align: 2px;
+  text-decoration: none;
+  word-break: normal;
+}
+
+.bubble .citation-link:hover {
+  background: #d6e4ff;
+}
+
+/* 蓝底用户气泡内的 Markdown 配色 */
+.bubble.user blockquote {
+  border-left-color: rgb(255 255 255 / 55%);
+  color: rgb(255 255 255 / 85%);
+}
+
+.bubble.user code {
+  background: rgb(255 255 255 / 20%);
+  color: #fff;
+}
+
+.bubble.user pre {
+  background: rgb(0 0 0 / 15%);
+  color: #fff;
+}
+
+.bubble.user a {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.bubble.user th,
+.bubble.user td {
+  border-color: rgb(255 255 255 / 40%);
 }
 
 .chat-input {
@@ -596,4 +640,254 @@ body {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ---------- 右键引用卡片（Markdown 引用风格） ---------- */
+
+.quote-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-left: 3px solid #d9d9d9;
+  border-radius: 0 6px 6px 0;
+  background: #fafafa;
+}
+
+.quote-card-close {
+  color: #bbb;
+  cursor: pointer;
+}
+
+.quote-card-close:hover {
+  color: #666;
+}
+
+.quote-card-text {
+  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  color: #666;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---------- 多来源来源条 ---------- */
+
+.chat-source-list {
+  margin-bottom: 8px;
+  padding: 4px 6px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.chat-source-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 4px;
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chat-source-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 8px 2px 22px;
+  font-size: 12px;
+}
+
+.chat-source-citation {
+  flex-shrink: 0;
+  color: #bbb;
+  font-size: 11px;
+}
+
+.chat-source-favicon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.chat-source-favicon-fallback {
+  flex-shrink: 0;
+  color: #bbb;
+  font-size: 13px;
+}
+
+.chat-source-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 探究快捷问题 ---------- */
+
+.scope-quick-questions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: auto;
+  padding: 24px 0;
+  color: rgb(0 0 0 / 45%);
+  font-size: 12px;
+  line-height: 2;
+  text-align: center;
+}
+
+.scope-quick-questions .chat-empty-icon {
+  color: rgb(0 0 0 / 25%);
+}
+
+/* 分割线：--- · --- */
+.scope-quick-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 200px;
+  margin: 0 auto;
+}
+
+.scope-quick-divider-line {
+  flex: 1;
+  height: 1px;
+  background: rgb(0 0 0 / 10%);
+}
+
+.scope-quick-divider-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 25%);
+}
+
+.scope-quick-question {
+  padding: 2px 12px;
+  border: 1px solid #f0f0f0;
+  border-radius: 14px;
+  color: rgb(0 0 0 / 45%);
+  cursor: pointer;
+}
+
+.scope-quick-question:hover {
+  border-color: #d9d9d9;
+  color: rgb(0 0 0 / 65%);
+}
+
+/* ---------- 探究标签页选择页 ---------- */
+
+.research-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.research-tab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.research-tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.research-tab-item:hover {
+  background: #fafafa;
+}
+
+.research-tab-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research-tab-domain {
+  flex-shrink: 0;
+  color: #999;
+  font-size: 11px;
+}
+
+.research-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+/* ---------- 收藏选择工具栏 ---------- */
+
+/* 全文搜索正文命中片段：引用块风格 */
+.clip-hit-excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-left: 3px solid #d9d9d9;
+  overflow: hidden;
+  color: #888;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.clip-select-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border: 1px solid #d6e4ff;
+  border-radius: 8px;
+  background: #f0f5ff;
+}
+
+/* 收藏卡片底部标签行：标签之间留出间距并可换行 */
+.clip-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 6px;
+}
+
+/* 选择模式下选中的卡片：高亮边框 + 左上角斜角勾选标记 */
+.clip-card-selected {
+  position: relative;
+  overflow: hidden;
+  border-color: #1677ff;
+}
+
+.clip-select-corner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 0;
+  height: 0;
+  border-top: 22px solid #1677ff;
+  border-right: 22px solid transparent;
+  pointer-events: none;
 }
