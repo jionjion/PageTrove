@@ -1,37 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  App as AntApp,
-  AutoComplete,
-  Button,
-  Card,
-  Checkbox,
-  Input,
-  Menu,
-  Select,
-  Space,
-  Switch,
-  Typography,
-} from 'antd';
-import {
-  ApiOutlined,
-  DatabaseOutlined,
-  DownloadOutlined,
-  RobotOutlined,
-  SaveOutlined,
-  UploadOutlined,
-} from '@ant-design/icons';
-import {
-  DEFAULT_SETTINGS,
-  PROVIDERS,
-  getModelCapabilities,
-  modelCapabilityKey,
-  type ExtensionSettings,
-} from '@/types/settings';
-import { getSettings, saveSettings } from '@/services/settings-store';
-import { exportAll, importAll } from '@/services/clip-store';
-import { toErrorMessage } from '@/utils/errors';
-import { McpSettings } from '@/components/McpSettings';
-import { validateMcpServer } from '@/services/mcp-client';
+import {useEffect, useRef, useState} from 'react';
+import {App as AntApp, AutoComplete, Button, Card, Checkbox, Input, Menu, Select, Space, Switch, Typography,} from 'antd';
+import {ApiOutlined, DatabaseOutlined, DownloadOutlined, RobotOutlined, SaveOutlined, UploadOutlined,} from '@ant-design/icons';
+import {DEFAULT_SETTINGS, type ExtensionSettings, getModelCapabilities, modelCapabilityKey, PROVIDERS,} from '@/types/settings';
+import {getSettings, saveSettings} from '@/services/settings-store';
+import {exportAll, getClipsByIds, importAll, queryClips} from '@/services/clip-store';
+import {downloadClipsArchive} from '@/services/obsidian-export';
+import {toErrorMessage} from '@/utils/errors';
+import {McpSettings} from '@/components/McpSettings';
+import {validateMcpServer} from '@/services/mcp-client';
 
 import iconUrl from '/icon/48.png';
 
@@ -124,6 +100,22 @@ export default function App() {
     }
   };
 
+  const [obsidianIncludeContent, setObsidianIncludeContent] = useState(true);
+
+  const handleObsidianExport = async () => {
+    try {
+      const index = await queryClips();
+      if (index.length === 0) {
+        message.warning('没有可导出的收藏');
+        return;
+      }
+      const clips = await getClipsByIds(index.map((entry) => entry.id));
+      downloadClipsArchive(clips, { includeContent: obsidianIncludeContent });
+    } catch (e) {
+      message.error(toErrorMessage(e) || '生成 Obsidian 文件失败');
+    }
+  };
+
   const menuItems = [
     { key: 'model', icon: <RobotOutlined />, label: '模型配置' },
     { key: 'mcp', icon: <ApiOutlined />, label: 'MCP 工具' },
@@ -190,6 +182,12 @@ export default function App() {
 
       <Label>网页采集</Label>
       <Space direction="vertical" size={8} style={{ display: 'flex' }}>
+        <Checkbox
+              checked={settings.refineContent}
+              onChange={(e) => update({ refineContent: e.target.checked })}
+        >
+              整理时清洗正文
+        </Checkbox>
         <Checkbox
           checked={settings.includeSelectedText}
           onChange={(e) => update({ includeSelectedText: e.target.checked })}
@@ -271,6 +269,27 @@ export default function App() {
           导入收藏 JSON
         </Button>
       </Space>
+      <div style={{ marginTop: 16 }}>
+        <Label>Obsidian 导出</Label>
+        <Space direction="vertical" size={8} style={{ display: 'flex' }}>
+          <Checkbox
+            checked={obsidianIncludeContent}
+            onChange={(e) => setObsidianIncludeContent(e.target.checked)}
+          >
+            包含采集正文
+          </Checkbox>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={() => void handleObsidianExport()}
+          >
+            导出全部为 Obsidian ZIP
+          </Button>
+        </Space>
+        <Hint>
+          生成 Obsidian 兼容的 Markdown 文件（含索引），完全在本机生成。
+          导出文件可能包含你保存的网页内容和备注；不包含 API Key、MCP 配置和聊天历史。
+        </Hint>
+      </div>
       <input
         ref={fileInputRef}
         type="file"

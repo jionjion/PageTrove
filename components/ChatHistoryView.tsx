@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Empty, Input, Popconfirm, Space, Typography } from 'antd';
-import { DeleteOutlined } from '@ant-design/icons';
+import { Button, Card, Empty, Input, Popconfirm, Space, Tooltip, Typography } from 'antd';
+import { DeleteOutlined, LinkOutlined } from '@ant-design/icons';
+import { browser } from 'wxt/browser';
 import type { ChatIndexEntry } from '@/types/chat';
 import { getChatIndex, removeChat } from '@/services/chat-store';
 
@@ -67,12 +68,30 @@ export function ChatHistoryView({ active, onOpen }: Props) {
                   </Typography.Text>
                 </div>
               </div>
+              {s.url && (
+                <Tooltip title="打开原网页">
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<LinkOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void browser.tabs.create({ url: s.url });
+                    }}
+                  />
+                </Tooltip>
+              )}
               <Popconfirm
                 title="删除这个对话？"
                 okText="删除"
                 cancelText="取消"
                 okButtonProps={{ danger: true }}
-                onConfirm={() => void handleDelete(s.id)}
+                onConfirm={(e) => {
+                  e?.stopPropagation();
+                  void handleDelete(s.id);
+                }}
+                onCancel={(e) => e?.stopPropagation()}
+                onPopupClick={(e) => e.stopPropagation()}
               >
                 <Button
                   size="small"
