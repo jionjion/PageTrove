@@ -25,15 +25,22 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { browser } from 'wxt/browser';
-import type { ChatSession, ChatToolCall } from '@/types/chat';
+import type { ChatScope, ChatSession, ChatToolCall } from '@/types/chat';
+import type { QuoteChatIntent } from '@/types/chat-intent';
 import { getChat, saveChat } from '@/services/chat-store';
 import { getClip } from '@/services/clip-store';
 import {
   streamChat,
   type ChatContext,
   type ChatToolActivity,
+  type ResolvedChatSource,
 } from '@/services/deepseek-client';
-import { extractCurrentPage } from '@/services/page-extractor';
+import {
+  selectRelevantExcerpt,
+  sourceBudget,
+} from '@/services/content-excerpts';
+import { extractPage } from '@/services/page-extractor';
+import { ChatSourceList } from '@/components/ChatSourceList';
 import { pickPageElement } from '@/services/element-picker';
 import {
   captureSelectedRegion,
@@ -47,9 +54,10 @@ import {
 } from '@/types/settings';
 import { AppError, toErrorMessage } from '@/utils/errors';
 
-/** App 头部图标下发的指令：开启新会话 / 打开历史会话。 */
+/** App 头部图标下发的指令：开启新会话 / 打开历史会话 / 开启多来源探究会话。 */
 export type ChatCommand =
-  | { kind: 'new'; clipId?: string }
+  | { kind: 'new'; clipId?: string; quote?: QuoteChatIntent }
+  | { kind: 'new-scope'; scope: ChatScope }
   | { kind: 'open'; sessionId: string };
 
 interface Props {
@@ -120,6 +128,12 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
   const [session, setSession] = useState<ChatSession>();
   /** 新会话尚未发送第一条消息时的目标收藏 id。 */
   const [draftClipId, setDraftClipId] = useState<string>();
+  /** 新会话尚未发送第一条消息时的多来源范围。 */
+  const [draftScope, setDraftScope] = useState<ChatScope>();
+  /** 右键引用草稿；随第一条消息发送后清除。 */
+  const [draftQuote, setDraftQuote] = useState<QuoteChatIntent>();
+  /** 多来源部分来源不可用时的提示（如收藏已删除）。 */
+  const [scopeNotice, setScopeNotice] = useState<string>();
 
   const [input, setInput] = useState('');
   const [picked, setPicked] = useState<string>();
@@ -188,6 +202,9 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     abortRef.current?.abort();
     setSession(undefined);
     setDraftClipId(undefined);
+    setDraftScope(undefined);
+    setDraftQuote(undefined);
+    setScopeNotice(undefined);
     setError(undefined);
     setStreaming(undefined);
     setToolActivities([]);
@@ -198,15 +215,29 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     setCopiedIndex(undefined);
   };
 
-  const startNewSession = async (clipId?: string) => {
+  const scopeTitle = (scope: ChatScope) =>
+    scope.mode === 'tabs'
+      ? `探究 · ${scope.sources.length} 个网页`
+      : `探究 · ${scope.sources.length} 条收藏`;
+
+  const startNewSession = async (clipId?: string, quote?: QuoteChatIntent) => {
     resetState();
     setDraftClipId(clipId);
+    setDraftQuote(quote);
     if (clipId) {
       const clip = await getClip(clipId);
       onTitleChange(clip?.title ?? '关联收藏');
+    } else if (quote) {
+      onTitleChange(quote.title || '当前网页');
     } else {
       onTitleChange('当前网页');
     }
+  };
+
+  const startScopeSession = (scope: ChatScope) => {
+    resetState();
+    setDraftScope(scope);
+    onTitleChange(scopeTitle(scope));
   };
 
   const openSession = async (id: string) => {
@@ -214,7 +245,9 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     if (!loaded) return;
     resetState();
     setSession(loaded);
-    if (loaded.page) {
+    if (loaded.scope) {
+      onTitleChange(scopeTitle(loaded.scope));
+    } else if (loaded.page) {
       onTitleChange(loaded.page.title);
     } else if (loaded.clipId) {
       const clip = await getClip(loaded.clipId);
@@ -222,18 +255,114 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     }
   };
 
+  /**
+   * 处理右键引用意图：当前正处于同一网页的普通会话（含未发送的草稿会话）时，
+   * 直接把引用附加到当前对话；否则才新开会话。
+   */
+  const applyQuoteIntent = (quote: QuoteChatIntent) => {
+    const samePage = session
+      ? !session.clipId && !session.scope && session.page?.url === quote.url
+      : !draftClipId && !draftScope;
+    if (samePage) {
+      setDraftQuote(quote);
+      if (!session) onTitleChange(quote.title || '当前网页');
+      return;
+    }
+    void startNewSession(undefined, quote);
+  };
+
   useEffect(() => {
     if (nonce > 0 && command) {
-      if (command.kind === 'new') void startNewSession(command.clipId);
-      else void openSession(command.sessionId);
+      if (command.kind === 'new') {
+        if (command.quote) {
+          applyQuoteIntent(command.quote);
+        } else {
+          void startNewSession(command.clipId);
+        }
+      } else if (command.kind === 'new-scope') {
+        startScopeSession(command.scope);
+      } else {
+        void openSession(command.sessionId);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nonce]);
 
-  const resolveContext = async (value: {
-    clipId?: string;
-    page?: ChatContext;
-  }): Promise<ChatContext> => {
+  /** 将 scope 解析为多来源上下文；clip 来源实时读取正文，缺失时按回退链处理。 */
+  const resolveScopeContext = async (
+    scope: ChatScope,
+    question: string,
+  ): Promise<ChatContext> => {
+    const skipped: string[] = [];
+    const resolved: ResolvedChatSource[] = [];
+
+    for (const source of scope.sources) {
+      if (source.type === 'page') {
+        resolved.push({
+          id: source.id,
+          citation: '',
+          title: source.title,
+          url: source.url,
+          content: source.content,
+        });
+        continue;
+      }
+      const clip = await getClip(source.clipId);
+      if (!clip) {
+        skipped.push(`${source.title}（收藏已删除）`);
+        continue;
+      }
+      const content =
+        clip.extractedText ||
+        clip.selectedText ||
+        clip.description ||
+        clip.summary ||
+        clip.userNote ||
+        '';
+      if (!content.trim()) {
+        skipped.push(`${clip.title}（没有可用于问答的正文）`);
+        continue;
+      }
+      resolved.push({
+        id: source.id,
+        citation: '',
+        title: clip.title,
+        url: clip.url,
+        content,
+      });
+    }
+
+    if (resolved.length === 0) {
+      throw new AppError('AI_ANALYZE_FAILED', '选中的收藏已被删除或没有可用正文');
+    }
+    setScopeNotice(
+      skipped.length > 0 ? `已跳过不可用来源：${skipped.join('、')}` : undefined,
+    );
+
+    const budget = sourceBudget(resolved.length);
+    const sources = resolved.map((source, index) => ({
+      ...source,
+      citation: `S${index + 1}`,
+      content: selectRelevantExcerpt(source.content, question, budget),
+    }));
+
+    return {
+      title: scopeTitle(scope),
+      url: '',
+      content: '',
+      sources,
+    };
+  };
+
+  const resolveContext = async (
+    value: {
+      clipId?: string;
+      page?: ChatContext;
+      scope?: ChatScope;
+    },
+    question: string,
+  ): Promise<ChatContext> => {
+    if (value.scope) return resolveScopeContext(value.scope, question);
     if (value.page) return value.page;
     if (value.clipId) {
       const clip = await getClip(value.clipId);
@@ -253,14 +382,61 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     throw new AppError('AI_ANALYZE_FAILED', '会话缺少网页上下文');
   };
 
+  /**
+   * 为右键引用会话构建页面上下文：优先采集原标签页；
+   * 标签页已关闭、已导航或无法采集时，回退为"标题 + URL + 引用文字"。
+   */
+  const buildQuotePageContext = async (
+    quote: QuoteChatIntent,
+    settings: ExtensionSettings,
+  ): Promise<ChatContext> => {
+    const fallback: ChatContext = {
+      title: quote.title || '引用内容',
+      url: quote.url,
+      content: quote.text,
+    };
+    try {
+      const tab = await browser.tabs.get(quote.tabId);
+      if (!tab.url || tab.url !== quote.url) {
+        // 标签页已导航到其他地址：不读取新页面。
+        setScopeNotice('原网页已关闭或已跳转，将只根据引用文字回答');
+        return fallback;
+      }
+      const snapshot = await extractPage(
+        {
+          maxContentLength: settings.maxContentLength,
+          includeSelectedText: false,
+        },
+        quote.tabId,
+      );
+      return {
+        title: snapshot.title,
+        url: snapshot.url,
+        content: [snapshot.description, snapshot.mainText]
+          .filter(Boolean)
+          .join('\n'),
+      };
+    } catch {
+      setScopeNotice('原网页已关闭，将只根据引用文字回答');
+      return fallback;
+    }
+  };
+
   const handleSend = async () => {
     const question = input.trim();
     if (!question || busy) return;
 
     const image = attachment;
+    const quote = draftQuote;
     const content = [
       image ? '[截图]' : undefined,
       picked ? `【页面选取内容】\n${picked}` : undefined,
+      quote
+        ? quote.text
+            .split('\n')
+            .map((line) => `> ${line}`)
+            .join('\n')
+        : undefined,
       question,
     ]
       .filter(Boolean)
@@ -286,34 +462,41 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
       let current = session;
       if (!current) {
         let page: ChatContext | undefined;
-        if (!draftClipId) {
-          const snapshot = await extractCurrentPage({
-            maxContentLength: settings.maxContentLength,
-            includeSelectedText: settings.includeSelectedText,
-          });
-          page = {
-            title: snapshot.title,
-            url: snapshot.url,
-            content: [
-              snapshot.description,
-              snapshot.selectedText,
-              snapshot.mainText,
-            ]
-              .filter(Boolean)
-              .join('\n'),
-          };
-          onTitleChange(snapshot.title);
+        if (!draftClipId && !draftScope) {
+          if (quote) {
+            page = await buildQuotePageContext(quote, settings);
+            onTitleChange(page.title);
+          } else {
+            const snapshot = await extractPage({
+              maxContentLength: settings.maxContentLength,
+              includeSelectedText: settings.includeSelectedText,
+            });
+            page = {
+              title: snapshot.title,
+              url: snapshot.url,
+              content: [
+                snapshot.description,
+                snapshot.selectedText,
+                snapshot.mainText,
+              ]
+                .filter(Boolean)
+                .join('\n'),
+            };
+            onTitleChange(snapshot.title);
+          }
         }
         current = {
           id: crypto.randomUUID(),
           clipId: draftClipId,
           page,
+          scope: draftScope,
           title: question.slice(0, 30),
           messages: [],
           createdAt: now,
           updatedAt: now,
         };
       }
+      setDraftQuote(undefined);
 
       const withUser: ChatSession = {
         ...current,
@@ -326,7 +509,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
       setSession(withUser);
       await saveChat(withUser);
 
-      const context = await resolveContext(withUser);
+      const context = await resolveContext(withUser, question);
       const controller = new AbortController();
       abortRef.current = controller;
       setStreaming('');
@@ -442,7 +625,10 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
 
     try {
       const settings = await getSettings();
-      const context = await resolveContext(truncated);
+      const context = await resolveContext(
+        truncated,
+        lastUser?.content ?? '',
+      );
       const controller = new AbortController();
       abortRef.current = controller;
       setStreaming('');
@@ -522,6 +708,42 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     }
   };
 
+  const activeScope = session?.scope ?? draftScope;
+
+  /**
+   * 将回答中的 [S1] 引用标注替换为指向对应来源的 Markdown 链接；
+   * 已是链接形式（[S1](…)）的不重复处理，超出来源数的编号保持原样。
+   */
+  const linkifyCitations = (markdown: string): string => {
+    const sources = activeScope?.sources;
+    if (!sources || sources.length === 0) return markdown;
+    return markdown.replace(/\[S(\d+)\](?!\()/g, (matched, num: string) => {
+      const source = sources[Number(num) - 1];
+      return source ? `[S${num}](${source.url})` : matched;
+    });
+  };
+
+  /** 引用链接（S1、S2…）渲染为上标小徽标，悬停显示来源标题；其余链接新标签页打开。 */
+  const markdownComponents = {
+    a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+      const citation =
+        typeof children === 'string' && /^S(\d+)$/.test(children)
+          ? activeScope?.sources[Number(children.slice(1)) - 1]
+          : undefined;
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={citation ? 'citation-link' : undefined}
+          title={citation ? citation.title || citation.url : href}
+        >
+          {children}
+        </a>
+      );
+    },
+  };
+
   return (
     <div className="chat-session">
       <div className="chat-messages">
@@ -535,13 +757,14 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
               />
             )}
             <div className={`bubble ${message.role}`}>
-              {message.role === 'assistant' ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {message.content}
-                </ReactMarkdown>
-              ) : (
-                message.content
-              )}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={markdownComponents}
+              >
+                {message.role === 'assistant'
+                  ? linkifyCitations(message.content)
+                  : message.content}
+              </ReactMarkdown>
             </div>
             {message.role === 'assistant' && (
               <div className="msg-footer">
@@ -618,8 +841,11 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
             />
             <div className="bubble assistant">
               {streaming ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {streaming}
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={markdownComponents}
+                >
+                  {linkifyCitations(streaming)}
                 </ReactMarkdown>
               ) : (
                 <span className="msg-generating">
@@ -630,12 +856,35 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
           </div>
         )}
         {(session?.messages.length ?? 0) === 0 &&
-          streaming === undefined && (
+          streaming === undefined &&
+          (activeScope ? (
+            <div className="scope-quick-questions">
+              <ReadOutlined className="chat-empty-icon" />
+              <div>已就绪，可针对所选来源提问</div>
+              <div className="scope-quick-divider">
+                <span className="scope-quick-divider-line" />
+                <span className="scope-quick-divider-dot" />
+                <span className="scope-quick-divider-line" />
+              </div>
+              {[
+                '比较这些页面的核心差异',
+                '整理成一份结构化报告',
+              ].map((preset) => (
+                <span
+                  key={preset}
+                  className="scope-quick-question"
+                  onClick={() => setInput(preset)}
+                >
+                  {preset}
+                </span>
+              ))}
+            </div>
+          ) : (
             <div className="empty-hint chat-empty">
               <ReadOutlined className="chat-empty-icon" />
               <div>拾取互联网中有价值的碎片</div>
             </div>
-          )}
+          ))}
         <div ref={bottomRef} />
       </div>
 
@@ -648,6 +897,30 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
           style={{ marginBottom: 8 }}
         />
       )}
+
+      {scopeNotice && (
+        <Alert
+          type="warning"
+          showIcon
+          title={scopeNotice}
+          closable={{ onClose: () => setScopeNotice(undefined) }}
+          style={{ marginBottom: 8 }}
+        />
+      )}
+
+      {draftQuote && (
+        <div className="quote-card">
+          <div className="quote-card-text">{draftQuote.text}</div>
+          <span
+            className="quote-card-close"
+            onClick={() => setDraftQuote(undefined)}
+          >
+            <CloseOutlined />
+          </span>
+        </div>
+      )}
+
+      {activeScope && <ChatSourceList scope={activeScope} />}
 
       {picked && (
         <Alert

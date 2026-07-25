@@ -11,6 +11,7 @@ function toIndexEntry(session: ChatSession): ChatIndexEntry {
     id: session.id,
     title: session.title,
     clipId: session.clipId,
+    url: session.page?.url,
     messageCount: session.messages.length,
     updatedAt: session.updatedAt,
   };
