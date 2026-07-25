@@ -4,6 +4,7 @@ import { DeleteOutlined, LinkOutlined } from '@ant-design/icons';
 import { browser } from 'wxt/browser';
 import type { ChatIndexEntry } from '@/types/chat';
 import { getChatIndex, removeChat } from '@/services/chat-store';
+import { onDataChanged } from '@/services/data-events';
 
 interface Props {
   /** 视图是否可见；变为可见时刷新列表 */
@@ -22,6 +23,13 @@ export function ChatHistoryView({ active, onOpen }: Props) {
 
   useEffect(() => {
     if (active) void refresh();
+  }, [active, refresh]);
+
+  // 聊天数据变化时，视图可见则刷新列表
+  useEffect(() => {
+    return onDataChanged('chats', () => {
+      if (active) void refresh();
+    });
   }, [active, refresh]);
 
   const handleDelete = async (id: string) => {
