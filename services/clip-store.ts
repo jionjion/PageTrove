@@ -144,6 +144,21 @@ export async function getClip(id: string): Promise<WebClip | undefined> {
   return result[clipKey(id)] as WebClip | undefined;
 }
 
+/** 批量读取收藏详情；分批执行避免一次拉起全部正文。 */
+export async function getClipsByIds(ids: string[]): Promise<WebClip[]> {
+  const BATCH_SIZE = 50;
+  const clips: WebClip[] = [];
+  for (let start = 0; start < ids.length; start += BATCH_SIZE) {
+    const batch = ids.slice(start, start + BATCH_SIZE);
+    const result = await browser.storage.local.get(batch.map(clipKey));
+    for (const id of batch) {
+      const clip = result[clipKey(id)] as WebClip | undefined;
+      if (clip) clips.push(clip);
+    }
+  }
+  return clips;
+}
+
 export async function findByNormalizedUrl(
   normalizedUrl: string,
 ): Promise<ClipIndexEntry | undefined> {
@@ -164,8 +179,10 @@ export async function queryClips(query: ClipQuery = {}): Promise<ClipIndexEntry[
         e.tags.some((t) => t.toLowerCase().includes(keyword)),
     );
   }
-  if (query.tag) {
-    entries = entries.filter((e) => e.tags.includes(query.tag!));
+  if (query.tags && query.tags.length > 0) {
+    entries = entries.filter((e) =>
+      query.tags!.some((tag) => e.tags.includes(tag)),
+    );
   }
   if (query.domain) {
     entries = entries.filter((e) => e.domain === query.domain);
