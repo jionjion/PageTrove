@@ -1,10 +1,6 @@
-import { browser } from 'wxt/browser';
 import type { ChatIndexEntry, ChatSession } from '@/types/chat';
-import { AppError } from '@/utils/errors';
-
-const INDEX_KEY = 'chats:index';
-
-const chatKey = (id: string) => `chat:${id}`;
+import { mapDatabaseError, openPageTroveDatabase } from '@/services/database';
+import { emitDataChanged } from '@/services/data-events';
 
 function toIndexEntry(session: ChatSession): ChatIndexEntry {
   return {
@@ -18,42 +14,48 @@ function toIndexEntry(session: ChatSession): ChatIndexEntry {
 }
 
 export async function getChatIndex(): Promise<ChatIndexEntry[]> {
-  const result = await browser.storage.local.get(INDEX_KEY);
-  const index = (result[INDEX_KEY] as ChatIndexEntry[] | undefined) ?? [];
-  return index.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const db = await openPageTroveDatabase();
+  let entries: ChatIndexEntry[];
+  try {
+    entries = await db.getAll('chatEntries');
+  } catch (error) {
+    throw mapDatabaseError(error);
+  }
+  return [...entries].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export async function getChat(id: string): Promise<ChatSession | undefined> {
-  const result = await browser.storage.local.get(chatKey(id));
-  return result[chatKey(id)] as ChatSession | undefined;
+  const db = await openPageTroveDatabase();
+  try {
+    return await db.get('chats', id);
+  } catch (error) {
+    throw mapDatabaseError(error);
+  }
 }
 
-/** 新建或更新会话，并同步索引 */
+/** 新建或更新会话；详情与轻量索引在同一事务中写入。 */
 export async function saveChat(session: ChatSession): Promise<void> {
+  const db = await openPageTroveDatabase();
   try {
-    await browser.storage.local.set({ [chatKey(session.id)]: session });
+    const tx = db.transaction(['chats', 'chatEntries'], 'readwrite');
+    await tx.objectStore('chats').put(session);
+    await tx.objectStore('chatEntries').put(toIndexEntry(session));
+    await tx.done;
   } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (message.toLowerCase().includes('quota')) {
-      throw new AppError('STORAGE_FULL');
-    }
-    throw new AppError('SAVE_FAILED');
+    throw mapDatabaseError(error);
   }
-  const result = await browser.storage.local.get(INDEX_KEY);
-  const index = (result[INDEX_KEY] as ChatIndexEntry[] | undefined) ?? [];
-  await browser.storage.local.set({
-    [INDEX_KEY]: [
-      toIndexEntry(session),
-      ...index.filter((e) => e.id !== session.id),
-    ],
-  });
+  emitDataChanged('chats');
 }
 
 export async function removeChat(id: string): Promise<void> {
-  await browser.storage.local.remove(chatKey(id));
-  const result = await browser.storage.local.get(INDEX_KEY);
-  const index = (result[INDEX_KEY] as ChatIndexEntry[] | undefined) ?? [];
-  await browser.storage.local.set({
-    [INDEX_KEY]: index.filter((e) => e.id !== id),
-  });
+  const db = await openPageTroveDatabase();
+  try {
+    const tx = db.transaction(['chats', 'chatEntries'], 'readwrite');
+    await tx.objectStore('chats').delete(id);
+    await tx.objectStore('chatEntries').delete(id);
+    await tx.done;
+  } catch (error) {
+    throw mapDatabaseError(error);
+  }
+  emitDataChanged('chats');
 }

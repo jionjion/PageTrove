@@ -1,12 +1,13 @@
 import {useEffect, useRef, useState} from 'react';
-import {App as AntApp, AutoComplete, Button, Card, Checkbox, Input, Menu, Select, Space, Switch, Typography,} from 'antd';
-import {ApiOutlined, DatabaseOutlined, DownloadOutlined, RobotOutlined, SaveOutlined, UploadOutlined,} from '@ant-design/icons';
+import {App as AntApp, AutoComplete, Button, Checkbox, Input, Menu, Select, Space, Switch, Typography,} from 'antd';
+import {ApiOutlined, DatabaseOutlined, DownloadOutlined, RobotOutlined, SaveOutlined, UploadOutlined, UserOutlined,} from '@ant-design/icons';
 import {DEFAULT_SETTINGS, type ExtensionSettings, getModelCapabilities, modelCapabilityKey, PROVIDERS,} from '@/types/settings';
 import {getSettings, saveSettings} from '@/services/settings-store';
 import {exportAll, getClipsByIds, importAll, queryClips} from '@/services/clip-store';
 import {downloadClipsArchive} from '@/services/obsidian-export';
 import {toErrorMessage} from '@/utils/errors';
 import {McpSettings} from '@/components/McpSettings';
+import {DataStatsPanel} from '@/components/DataStatsPanel';
 import {validateMcpServer} from '@/services/mcp-client';
 
 import iconUrl from '/icon/48.png';
@@ -26,7 +27,7 @@ const Hint = ({ children }: { children: React.ReactNode }) => (
 export default function App() {
   const { message } = AntApp.useApp();
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
-  const [section, setSection] = useState('model');
+  const [section, setSection] = useState('profile');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -117,10 +118,23 @@ export default function App() {
   };
 
   const menuItems = [
+    { key: 'profile', icon: <UserOutlined />, label: '个人中心' },
     { key: 'model', icon: <RobotOutlined />, label: '模型配置' },
     { key: 'mcp', icon: <ApiOutlined />, label: 'MCP 工具' },
     { key: 'data', icon: <DatabaseOutlined />, label: '数据管理' },
   ];
+
+  const profileSection = (
+    <>
+      <Typography.Title level={5} className="options-section-title">
+        个人中心
+      </Typography.Title>
+      <DataStatsPanel />
+      <Hint>
+        所有收藏数据只保存在本机浏览器中，建议前往“数据管理”定期导出备份。
+      </Hint>
+    </>
+  );
 
   const modelSection = (
     <>
@@ -305,6 +319,7 @@ export default function App() {
   );
 
   const sections: Record<string, React.ReactNode> = {
+    profile: profileSection,
     model: modelSection,
     mcp: mcpSection,
     data: dataSection,
@@ -323,14 +338,13 @@ export default function App() {
         <Menu
           className="options-menu"
           mode="inline"
+          style={{ borderInlineEnd: 'none', background: 'transparent' }}
           selectedKeys={[section]}
           onClick={({ key }) => setSection(key)}
           items={menuItems}
         />
         <div className="options-content">
-          <Card size="small" className="options-content-card">
-            {sections[section]}
-          </Card>
+          <div className="options-content-card">{sections[section]}</div>
           <div className="options-actions">
             <Button
               type="primary"
