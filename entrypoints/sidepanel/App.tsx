@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { Button, Typography } from 'antd';
 import {
+  ExperimentOutlined,
   FolderOpenOutlined,
   HistoryOutlined,
   PlusOutlined,
@@ -12,8 +13,13 @@ import { CurrentPageView } from '@/components/CurrentPageView';
 import { ClipListView } from '@/components/ClipListView';
 import { ChatView, type ChatCommand } from '@/components/ChatView';
 import { ChatHistoryView } from '@/components/ChatHistoryView';
+import { ResearchSetupView } from '@/components/ResearchSetupView';
+import {
+  onQuoteIntentChanged,
+  takeNextQuoteIntent,
+} from '@/services/chat-intent-store';
 
-type View = 'chat' | 'history' | 'current' | 'clips';
+type View = 'chat' | 'research' | 'history' | 'current' | 'clips';
 
 export default function App() {
   const [view, setView] = useState<View>('chat');
@@ -21,12 +27,31 @@ export default function App() {
   const [chatNonce, setChatNonce] = useState(0);
   /** 当前会话的上下文标题，显示在头部 */
   const [chatTitle, setChatTitle] = useState('当前网页');
+  /** 已消费过的意图 id，防止重复下发 */
+  const consumedIntentIds = useRef(new Set<string>());
 
   const dispatchChat = (command: ChatCommand) => {
     setChatCommand(command);
     setChatNonce((n) => n + 1);
     setView('chat');
   };
+
+  /** 消费右键引用意图队列，逐条下发新会话。 */
+  const consumeQuoteIntents = async () => {
+    for (;;) {
+      const intent = await takeNextQuoteIntent();
+      if (!intent) return;
+      if (consumedIntentIds.current.has(intent.id)) continue;
+      consumedIntentIds.current.add(intent.id);
+      dispatchChat({ kind: 'new', quote: intent });
+    }
+  };
+
+  useEffect(() => {
+    void consumeQuoteIntents();
+    return onQuoteIntentChanged(() => void consumeQuoteIntents());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** 点击图标切换视图；再点一次已激活的图标则回到对话 */
   const toggleView = (target: View) => {
@@ -52,6 +77,13 @@ export default function App() {
             title="新对话（针对当前网页）"
             icon={<PlusOutlined />}
             onClick={() => dispatchChat({ kind: 'new' })}
+          />
+          <Button
+            type="text"
+            title="探究多个网页"
+            style={iconStyle('research')}
+            icon={<ExperimentOutlined />}
+            onClick={() => toggleView('research')}
           />
           <Button
             type="text"
@@ -87,6 +119,12 @@ export default function App() {
       <div className="app-body" style={view === 'chat' ? undefined : { display: 'none' }}>
         <ChatView command={chatCommand} nonce={chatNonce} onTitleChange={setChatTitle} />
       </div>
+      <div className="app-body" style={view === 'research' ? undefined : { display: 'none' }}>
+        <ResearchSetupView
+          active={view === 'research'}
+          onStart={(scope) => dispatchChat({ kind: 'new-scope', scope })}
+        />
+      </div>
       <div className="app-body" style={view === 'history' ? undefined : { display: 'none' }}>
         <ChatHistoryView
           active={view === 'history'}
@@ -100,6 +138,7 @@ export default function App() {
         <ClipListView
           active={view === 'clips'}
           onChat={(clipId) => dispatchChat({ kind: 'new', clipId })}
+          onResearch={(scope) => dispatchChat({ kind: 'new-scope', scope })}
         />
       </div>
     </div>
