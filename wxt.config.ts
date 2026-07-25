@@ -9,7 +9,15 @@ export default defineConfig({
     description: '拾页 - 拾取互联网有价值的碎片',
     version: packageJson.version,
 
-    permissions: ['activeTab', 'scripting', 'storage', 'tabs', 'sidePanel'],
+    permissions: [
+      'activeTab',
+      'scripting',
+      'storage',
+      'tabs',
+      'sidePanel',
+      // contextMenus：仅用于用户选中文字后显示"向拾页提问"菜单。
+      'contextMenus',
+    ],
 
     // <all_urls>：剪藏插件需要在用户点击"读取"时向任意页面注入采集脚本。
     // activeTab 只覆盖"点击扩展图标那一刻"的标签页，侧边栏内的按钮点击不会授予它。
