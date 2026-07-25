@@ -9,7 +9,10 @@ export type ErrorCode =
   | 'INVALID_AI_RESPONSE'
   | 'DUPLICATE_CLIP'
   | 'STORAGE_FULL'
-  | 'SAVE_FAILED';
+  | 'SAVE_FAILED'
+  | 'DB_OPEN_FAILED'
+  | 'DB_BLOCKED'
+  | 'DB_VERSION_MISMATCH';
 
 const MESSAGES: Record<ErrorCode, string> = {
   UNSUPPORTED_PAGE: '浏览器内部页面不支持采集，请在普通网页中使用',
@@ -23,6 +26,9 @@ const MESSAGES: Record<ErrorCode, string> = {
   DUPLICATE_CLIP: '该网页已收藏，请勿重复保存',
   STORAGE_FULL: '本地存储空间不足，请清理部分收藏',
   SAVE_FAILED: '保存失败，请重试',
+  DB_OPEN_FAILED: '本地数据库打开失败，请重试',
+  DB_BLOCKED: '数据库升级被其他拾页页面占用，请关闭其他拾页设置页或侧边栏后重试',
+  DB_VERSION_MISMATCH: '本地数据库版本不兼容，请更新扩展后重试',
 };
 
 export class AppError extends Error {

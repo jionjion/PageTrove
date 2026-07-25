@@ -19,7 +19,6 @@ import {
   MessageOutlined,
   SaveOutlined,
 } from '@ant-design/icons';
-import { browser } from 'wxt/browser';
 import type { ClipIndexEntry, WebClip } from '@/types/clip';
 import type { ChatScope } from '@/types/chat';
 import {
@@ -34,6 +33,7 @@ import {
   searchClipContents,
   parseQueryTerms,
 } from '@/services/content-search';
+import { onDataChanged } from '@/services/data-events';
 import {
   downloadClipMarkdown,
   downloadClipsArchive,
@@ -75,25 +75,6 @@ export function ClipListView({ active, onChat, onResearch }: Props) {
   const detailCacheRef = useRef<Map<string, WebClip>>(new Map());
   const requestIdRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-
-  // 收藏数据变化时使详情缓存失效
-  useEffect(() => {
-    const onStorageChanged = (
-      changes: Record<string, Browser.storage.StorageChange>,
-      areaName: string,
-    ) => {
-      if (areaName !== 'local') return;
-      if (
-        Object.keys(changes).some(
-          (key) => key.startsWith('clip:') || key === 'clips:index',
-        )
-      ) {
-        detailCacheRef.current.clear();
-      }
-    };
-    browser.storage.onChanged.addListener(onStorageChanged);
-    return () => browser.storage.onChanged.removeListener(onStorageChanged);
-  }, []);
 
   const runSearch = useCallback(async (query: string, tagFilter: string[]) => {
     const requestId = ++requestIdRef.current;
@@ -142,6 +123,14 @@ export function ClipListView({ active, onChat, onResearch }: Props) {
     setFacets(await collectFacets());
     await runSearch(keyword, tags);
   }, [keyword, tags, runSearch]);
+
+  // 收藏数据变化时使详情缓存失效；视图可见时刷新列表
+  useEffect(() => {
+    return onDataChanged('clips', () => {
+      detailCacheRef.current.clear();
+      if (active) void refresh();
+    });
+  }, [active, refresh]);
 
   useEffect(() => {
     if (!active) return;
