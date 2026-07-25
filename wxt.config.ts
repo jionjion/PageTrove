@@ -13,6 +13,8 @@ export default defineConfig({
       'activeTab',
       'scripting',
       'storage',
+      // unlimitedStorage：豁免 IndexedDB 配额限制与存储驱逐，保障收藏/聊天数据持久。
+      'unlimitedStorage',
       'tabs',
       'sidePanel',
       // contextMenus：仅用于用户选中文字后显示"向拾页提问"菜单。

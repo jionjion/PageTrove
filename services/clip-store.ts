@@ -1,9 +1,9 @@
-import { browser } from 'wxt/browser';
 import type { ClipIndexEntry, ClipQuery, WebClip } from '@/types/clip';
 import { AppError } from '@/utils/errors';
 import { normalizeUrl } from '@/services/url-utils';
+import { mapDatabaseError, openPageTroveDatabase } from '@/services/database';
+import { emitDataChanged } from '@/services/data-events';
 
-const INDEX_KEY = 'clips:index';
 const EXPORT_VERSION = 1;
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
 const MAX_IMPORT_CLIPS = 5_000;
@@ -21,8 +21,6 @@ const IMPORT_LIMITS = {
   extractedText: 200_000,
   faviconUrl: 100_000,
 } as const;
-
-const clipKey = (id: string) => `clip:${id}`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -42,132 +40,110 @@ function toIndexEntry(clip: WebClip): ClipIndexEntry {
   };
 }
 
-async function readIndex(): Promise<ClipIndexEntry[]> {
-  const result = await browser.storage.local.get(INDEX_KEY);
-  const stored = result[INDEX_KEY];
-  if (!Array.isArray(stored)) return [];
-
-  return stored
-    .filter(
-      (entry): entry is Record<string, unknown> =>
-        isRecord(entry) &&
-        typeof entry.id === 'string' &&
-        typeof entry.title === 'string' &&
-        typeof entry.url === 'string' &&
-        typeof entry.normalizedUrl === 'string' &&
-        typeof entry.domain === 'string' &&
-        typeof entry.createdAt === 'string',
-    )
-    .map(
-      (entry): ClipIndexEntry => ({
-        id: entry.id as string,
-        title: entry.title as string,
-        url: entry.url as string,
-        normalizedUrl: entry.normalizedUrl as string,
-        domain: entry.domain as string,
-        faviconUrl:
-          typeof entry.faviconUrl === 'string' ? entry.faviconUrl : undefined,
-        summary: typeof entry.summary === 'string' ? entry.summary : undefined,
-        tags: Array.isArray(entry.tags)
-          ? entry.tags.filter((tag): tag is string => typeof tag === 'string')
-          : [],
-        createdAt: entry.createdAt as string,
-      }),
-    );
-}
-
-async function writeStorage(values: Record<string, unknown>): Promise<void> {
-  try {
-    await browser.storage.local.set(values);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (message.toLowerCase().includes('quota')) {
-      throw new AppError('STORAGE_FULL');
-    }
-    throw new AppError('SAVE_FAILED');
-  }
-}
-
 export async function createClip(clip: WebClip): Promise<void> {
-  const index = await readIndex();
-  const nextIndex = [
-    toIndexEntry(clip),
-    ...index.filter((entry) => entry.id !== clip.id),
-  ];
-  await writeStorage({
-    [clipKey(clip.id)]: clip,
-    [INDEX_KEY]: nextIndex,
-  });
+  const db = await openPageTroveDatabase();
+  try {
+    const tx = db.transaction(['clips', 'clipEntries'], 'readwrite');
+    await tx.objectStore('clips').put(clip);
+    await tx.objectStore('clipEntries').put(toIndexEntry(clip));
+    await tx.done;
+  } catch (error) {
+    throw mapDatabaseError(error);
+  }
+  emitDataChanged('clips');
 }
 
 export async function updateClip(
   id: string,
   patch: Partial<WebClip>,
 ): Promise<WebClip> {
-  const existing = await getClip(id);
-  if (!existing) {
-    throw new AppError('SAVE_FAILED', '收藏不存在或已被删除');
+  const db = await openPageTroveDatabase();
+  let next: WebClip;
+  try {
+    const tx = db.transaction(['clips', 'clipEntries'], 'readwrite');
+    const clips = tx.objectStore('clips');
+    const existing = await clips.get(id);
+    if (!existing) {
+      throw new AppError('SAVE_FAILED', '收藏不存在或已被删除');
+    }
+    next = {
+      ...existing,
+      ...patch,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+    await clips.put(next);
+    await tx.objectStore('clipEntries').put(toIndexEntry(next));
+    await tx.done;
+  } catch (error) {
+    throw mapDatabaseError(error);
   }
-  const next: WebClip = {
-    ...existing,
-    ...patch,
-    id,
-    updatedAt: new Date().toISOString(),
-  };
-
-  const index = await readIndex();
-  const nextIndex = index.map((entry) =>
-    entry.id === id ? toIndexEntry(next) : entry,
-  );
-  await writeStorage({
-    [clipKey(id)]: next,
-    [INDEX_KEY]: nextIndex,
-  });
+  emitDataChanged('clips');
   return next;
 }
 
 export async function removeClip(id: string): Promise<void> {
-  const index = await readIndex();
-  await writeStorage({
-    [INDEX_KEY]: index.filter((entry) => entry.id !== id),
-  });
+  const db = await openPageTroveDatabase();
   try {
-    await browser.storage.local.remove(clipKey(id));
-  } catch {
-    // 索引已经移除；即使详情清理失败，也不会留下无法打开的可见记录。
-    throw new AppError('SAVE_FAILED', '收藏已从列表移除，但详情清理失败');
+    const tx = db.transaction(['clips', 'clipEntries'], 'readwrite');
+    await tx.objectStore('clips').delete(id);
+    await tx.objectStore('clipEntries').delete(id);
+    await tx.done;
+  } catch (error) {
+    throw mapDatabaseError(error);
   }
+  emitDataChanged('clips');
 }
 
 export async function getClip(id: string): Promise<WebClip | undefined> {
-  const result = await browser.storage.local.get(clipKey(id));
-  return result[clipKey(id)] as WebClip | undefined;
+  const db = await openPageTroveDatabase();
+  try {
+    return await db.get('clips', id);
+  } catch (error) {
+    throw mapDatabaseError(error);
+  }
 }
 
-/** 批量读取收藏详情；分批执行避免一次拉起全部正文。 */
+/** 批量读取收藏详情；同一 readonly 事务内并发 get，返回顺序与传入 ID 一致。 */
 export async function getClipsByIds(ids: string[]): Promise<WebClip[]> {
-  const BATCH_SIZE = 50;
-  const clips: WebClip[] = [];
-  for (let start = 0; start < ids.length; start += BATCH_SIZE) {
-    const batch = ids.slice(start, start + BATCH_SIZE);
-    const result = await browser.storage.local.get(batch.map(clipKey));
-    for (const id of batch) {
-      const clip = result[clipKey(id)] as WebClip | undefined;
-      if (clip) clips.push(clip);
-    }
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) return [];
+
+  const db = await openPageTroveDatabase();
+  try {
+    const tx = db.transaction('clips', 'readonly');
+    const results = await Promise.all(
+      uniqueIds.map((id) => tx.store.get(id)),
+    );
+    await tx.done;
+    return results.filter((clip): clip is WebClip => clip !== undefined);
+  } catch (error) {
+    throw mapDatabaseError(error);
   }
-  return clips;
 }
 
 export async function findByNormalizedUrl(
   normalizedUrl: string,
 ): Promise<ClipIndexEntry | undefined> {
-  const index = await readIndex();
-  return index.find((e) => e.normalizedUrl === normalizedUrl);
+  const db = await openPageTroveDatabase();
+  try {
+    return await db.getFromIndex('clipEntries', 'normalizedUrl', normalizedUrl);
+  } catch (error) {
+    throw mapDatabaseError(error);
+  }
+}
+
+async function readAllEntries(): Promise<ClipIndexEntry[]> {
+  const db = await openPageTroveDatabase();
+  try {
+    return await db.getAll('clipEntries');
+  } catch (error) {
+    throw mapDatabaseError(error);
+  }
 }
 
 export async function queryClips(query: ClipQuery = {}): Promise<ClipIndexEntry[]> {
-  let entries = await readIndex();
+  let entries = await readAllEntries();
 
   const keyword = query.keyword?.trim().toLowerCase();
   if (keyword) {
@@ -198,9 +174,9 @@ export async function queryClips(query: ClipQuery = {}): Promise<ClipIndexEntry[
 
 /** 收集索引中出现过的全部标签，用于筛选器 */
 export async function collectFacets(): Promise<{ tags: string[] }> {
-  const index = await readIndex();
+  const entries = await readAllEntries();
   const tags = new Set<string>();
-  for (const entry of index) {
+  for (const entry of entries) {
     entry.tags.forEach((t) => tags.add(t));
   }
   return { tags: [...tags].sort() };
@@ -208,12 +184,14 @@ export async function collectFacets(): Promise<{ tags: string[] }> {
 
 /** 导出全部收藏为 JSON 字符串（不包含设置和 API Key） */
 export async function exportAll(): Promise<string> {
-  const index = await readIndex();
-  const clips: WebClip[] = [];
-  for (const entry of index) {
-    const clip = await getClip(entry.id);
-    if (clip) clips.push(clip);
+  const db = await openPageTroveDatabase();
+  let clips: WebClip[];
+  try {
+    clips = await db.getAll('clips');
+  } catch (error) {
+    throw mapDatabaseError(error);
   }
+  clips.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return JSON.stringify(
     {
       version: EXPORT_VERSION,
@@ -336,7 +314,7 @@ export interface ImportResult {
   invalid: number;
 }
 
-/** 校验并导入收藏，按重新计算后的 normalizedUrl 去重。 */
+/** 校验并导入收藏，按重新计算后的 normalizedUrl 去重（含库内与批内去重）。 */
 export async function importAll(json: string): Promise<ImportResult> {
   if (new TextEncoder().encode(json).byteLength > MAX_IMPORT_BYTES) {
     throw new AppError('SAVE_FAILED', '导入文件不能超过 10 MB');
@@ -370,9 +348,12 @@ export async function importAll(json: string): Promise<ImportResult> {
     );
   }
 
-  const index = await readIndex();
-  const existingUrls = new Set(index.map((e) => e.normalizedUrl));
-  const usedIds = new Set(index.map((entry) => entry.id));
+  // 事务外完成全部校验和去重计算
+  const existing = await readAllEntries();
+  // existingUrls 同时承担库内去重和批内去重：批内后出现的同 normalizedUrl 记录
+  // 计入 duplicates，避免唯一索引 ConstraintError 使整批事务中止。
+  const existingUrls = new Set(existing.map((e) => e.normalizedUrl));
+  const usedIds = new Set(existing.map((entry) => entry.id));
   const importedClips: WebClip[] = [];
   let duplicates = 0;
   let invalid = 0;
@@ -393,16 +374,20 @@ export async function importAll(json: string): Promise<ImportResult> {
   }
 
   if (importedClips.length > 0) {
-    const values: Record<string, unknown> = {
-      [INDEX_KEY]: [
-        ...importedClips.map(toIndexEntry),
-        ...index,
-      ],
-    };
-    for (const clip of importedClips) {
-      values[clipKey(clip.id)] = clip;
+    const db = await openPageTroveDatabase();
+    try {
+      const tx = db.transaction(['clips', 'clipEntries'], 'readwrite');
+      const clipsStore = tx.objectStore('clips');
+      const entriesStore = tx.objectStore('clipEntries');
+      for (const clip of importedClips) {
+        void clipsStore.put(clip);
+        void entriesStore.put(toIndexEntry(clip));
+      }
+      await tx.done;
+    } catch (error) {
+      throw mapDatabaseError(error);
     }
-    await writeStorage(values);
+    emitDataChanged('clips');
   }
 
   return {

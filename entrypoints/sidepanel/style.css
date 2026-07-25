@@ -59,23 +59,23 @@ body {
 
 .options-body {
   display: flex;
-  gap: 16px;
-  align-items: flex-start;
+  align-items: stretch;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .options-menu {
   flex-shrink: 0;
   width: 180px;
-  padding: 6px;
-  border-radius: 10px;
-  border-inline-end: none;
-  background: #fff;
-  border: 1px solid #f0f0f0;
+  padding: 10px 8px;
+  background: #fafafa;
+  border-inline-end: 1px solid #f0f0f0;
 }
 
 .options-menu.ant-menu-inline {
-  position: sticky;
-  top: 76px;
+  border-radius: 0;
 }
 
 .options-menu .ant-menu-item {
@@ -92,15 +92,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 16px 20px;
 }
 
 .options-content-card {
-  border-radius: 10px;
-  border: 1px solid #f0f0f0;
-}
-
-.options-content-card .ant-card-body {
-  padding: 16px 20px;
+  flex: 1;
+  min-width: 0;
 }
 
 .options-section-title {
@@ -147,7 +144,8 @@ body {
 .options-actions {
   display: flex;
   justify-content: flex-end;
-  padding: 4px 0;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
 }
 
 .options-actions .ant-btn {
