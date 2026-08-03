@@ -53,6 +53,7 @@ import {
   type ExtensionSettings,
 } from '@/types/settings';
 import { AppError, toErrorMessage } from '@/utils/errors';
+import { useChatAutoScroll } from '@/hooks/useChatAutoScroll';
 
 /** App 头部图标下发的指令：开启新会话 / 打开历史会话 / 开启多来源探究会话。 */
 export type ChatCommand =
@@ -147,7 +148,12 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
   const [copiedIndex, setCopiedIndex] = useState<number>();
   const [ratings, setRatings] = useState<Record<number, 'like' | 'dislike'>>({});
   const abortRef = useRef<AbortController>();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const {
+    containerRef: messagesRef,
+    handleScroll: handleMessagesScroll,
+    followLatest,
+    resumeLatest,
+  } = useChatAutoScroll();
 
   const [chatSettings, setChatSettings] = useState<ExtensionSettings>();
   const [modelOptions, setModelOptions] = useState<string[]>([]);
@@ -185,8 +191,12 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
   };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [session?.messages.length, streaming, toolActivities]);
+    followLatest();
+  }, [session?.messages.length, streaming, toolActivities, followLatest]);
+
+  useEffect(() => {
+    resumeLatest('auto');
+  }, [session?.id, resumeLatest]);
 
   const updateToolActivity = (activity: ChatToolActivity) => {
     setToolActivities((current) => {
@@ -425,6 +435,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
   const handleSend = async () => {
     const question = input.trim();
     if (!question || busy) return;
+    resumeLatest('auto');
 
     const image = attachment;
     const quote = draftQuote;
@@ -599,6 +610,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
 
   const handleRegenerate = async (index: number) => {
     if (!session || busy) return;
+    resumeLatest('auto');
     const previousMessages = session.messages.slice(0, index);
     const lastUser = [...previousMessages]
       .reverse()
@@ -746,7 +758,11 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
 
   return (
     <div className="chat-session">
-      <div className="chat-messages">
+      <div
+        ref={messagesRef}
+        className="chat-messages"
+        onScroll={handleMessagesScroll}
+      >
         {(session?.messages ?? []).map((message, index) => (
           <div key={index} className={`msg-group ${message.role}`}>
             <div className="msg-time">{formatTime(message.createdAt)}</div>
@@ -885,9 +901,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
               <div>拾取互联网中有价值的碎片</div>
             </div>
           ))}
-        <div ref={bottomRef} />
       </div>
-
       {error && (
         <Alert
           type="error"
