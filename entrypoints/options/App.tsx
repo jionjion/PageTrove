@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {App as AntApp, AutoComplete, Button, Checkbox, Input, Menu, Select, Space, Switch, Typography,} from 'antd';
-import {ApiOutlined, DatabaseOutlined, DownloadOutlined, RobotOutlined, SaveOutlined, UploadOutlined, UserOutlined,} from '@ant-design/icons';
+import {ApiOutlined, DatabaseOutlined, DownloadOutlined, RobotOutlined, UploadOutlined, UserOutlined,} from '@ant-design/icons';
 import {DEFAULT_SETTINGS, type ExtensionSettings, getModelCapabilities, modelCapabilityKey, PROVIDERS,} from '@/types/settings';
 import {getSettings, saveSettings} from '@/services/settings-store';
 import {exportAll, getClipsByIds, importAll, queryClips} from '@/services/clip-store';
@@ -82,7 +82,10 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `pagetrove-export-${new Date().toISOString().slice(0, 10)}.json`;
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+      a.download = `pagetrove-export-${stamp}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -227,11 +230,10 @@ export default function App() {
           当前模型支持工具调用
         </Checkbox>
       </Space>
-      <Hint>
-        当前能力配置对应“{preset?.label ?? settings.provider} / {settings.model || '未选择模型'}”。
-        切换模型后会分别记忆。图片只在你主动截图或选取视觉元素时发送；页面内容不会读取密码、Cookie
-        或本地存储。
-      </Hint>
+        <Hint>
+            当前能力配置对应“{preset?.label ?? settings.provider} / {settings.model || '未选择模型'}”；切换模型后会分别记忆。<br/>
+            图片只在你主动截图或选取视觉元素时发送；页面内容不会读取密码、Cookie 或本地存储。
+        </Hint>
     </>
   );
 
@@ -242,17 +244,18 @@ export default function App() {
       </Typography.Title>
       <Label>执行日志</Label>
       <Space style={{ marginBottom: 8 }}>
+        <Typography.Text>
+              {settings.mcpVerboseLog ? '详细日志' : '简要日志'}
+        </Typography.Text>
         <Switch
           checked={settings.mcpVerboseLog}
           onChange={(checked) => update({ mcpVerboseLog: checked })}
         />
-        <Typography.Text>
-          {settings.mcpVerboseLog ? '详细日志' : '简要日志'}
-        </Typography.Text>
       </Space>
       <Hint>
         开启后显示 MCP 工具调用的详细过程，包括工具名称、参数与返回结果；关闭后只显示本次最终执行了 N 个工具。
       </Hint>
+      <Label>MCP 服务</Label>
       <McpSettings
         value={settings.mcpServers}
         onChange={(mcpServers) => update({ mcpServers })}
@@ -300,7 +303,7 @@ export default function App() {
           </Button>
         </Space>
         <Hint>
-          生成 Obsidian 兼容的 Markdown 文件（含索引），完全在本机生成。
+          生成 Obsidian 兼容的 Markdown 文件（含索引），完全在本机生成。<br/>
           导出文件可能包含你保存的网页内容和备注；不包含 API Key、MCP 配置和聊天历史。
         </Hint>
       </div>
@@ -348,7 +351,6 @@ export default function App() {
           <div className="options-actions">
             <Button
               type="primary"
-              icon={<SaveOutlined />}
               onClick={() => void handleSave()}
             >
               保存设置
