@@ -8,7 +8,6 @@ import {
   CaretUpOutlined,
   CheckOutlined,
   ClockCircleOutlined,
-  CloseOutlined,
   CopyOutlined,
   DislikeFilled,
   DislikeOutlined,
@@ -33,6 +32,7 @@ import {type ChatContext, type ChatToolActivity, type ResolvedChatSource, stream
 import {selectRelevantExcerpt, sourceBudget,} from '@/services/content-excerpts';
 import {extractPage} from '@/services/page-extractor';
 import {ChatSourceList} from '@/components/ChatSourceList';
+import {PendingContextTray} from '@/components/PendingContextTray';
 import {pickPageElement} from '@/services/element-picker';
 import {type CapturedImage, captureSelectedRegion,} from '@/services/screenshot-capture';
 import {getSettings, saveSettings} from '@/services/settings-store';
@@ -912,39 +912,18 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
         />
       )}
 
-      {draftQuote && (
-        <div className="quote-card">
-          <div className="quote-card-text">{draftQuote.text}</div>
-          <span
-            className="quote-card-close"
-            onClick={() => setDraftQuote(undefined)}
-          >
-            <CloseOutlined />
-          </span>
-        </div>
-      )}
+      {draftQuote || picked || attachment ? (
+        <PendingContextTray
+          quote={draftQuote?.text}
+          pickedText={picked}
+          image={attachment}
+          onRemoveQuote={() => setDraftQuote(undefined)}
+          onRemovePicked={() => setPicked(undefined)}
+          onRemoveImage={() => setAttachment(undefined)}
+        />
+      ) : null}
 
       {activeScope && <ChatSourceList scope={activeScope} />}
-
-      {picked && (
-        <Alert
-          type="info"
-          showIcon
-          icon={<AimOutlined />}
-          title={`已选取页面文字（${picked.length} 字），将随下一条消息发送`}
-          closable={{ onClose: () => setPicked(undefined) }}
-          style={{ marginBottom: 8 }}
-        />
-      )}
-
-      {attachment && (
-        <div className="screenshot-preview">
-          <img src={attachment.dataUrl} alt="待发送截图" />
-          <span className="screenshot-preview-close" onClick={() => setAttachment(undefined)}>
-            <CloseOutlined />
-          </span>
-        </div>
-      )}
 
       <div className="chat-input">
         <div className="chat-input-card">

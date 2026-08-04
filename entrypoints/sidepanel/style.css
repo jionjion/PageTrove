@@ -528,38 +528,95 @@ body {
   line-height: 1.5;
 }
 
-/* 临时截图预览 */
-.screenshot-preview {
-  position: relative;
-  display: inline-block;
-  width: fit-content;
-  align-self: flex-start;
+/* 待发送上下文托盘（引用 / 页面文字 / 截图） */
+.pending-tray {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
   margin-bottom: 8px;
+  overflow-y: auto;
 }
 
-.screenshot-preview img {
-  display: block;
-  max-width: 200px;
-  max-height: 120px;
+.pending-item {
+  border: 1px solid #f0f0f0;
   border-radius: 8px;
-  object-fit: cover;
+  background: #fafafa;
+  padding: 6px 10px;
 }
 
-.screenshot-preview .screenshot-preview-close {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 16px;
-  height: 16px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.55);
-  border-radius: 50%;
-  font-size: 9px;
-  line-height: 1;
-  cursor: pointer;
+.pending-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pending-item-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #555;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pending-item-meta {
+  flex: 1;
+  color: #aaa;
+  font-size: 11px;
+}
+
+.pending-item-meta::before {
+  content: '·';
+  margin-right: 6px;
+  color: #d9d9d9;
+}
+
+.pending-item-close {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #bbb;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.pending-item-close:hover {
+  color: #666;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.pending-item-close:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 1px;
+}
+
+.pending-item-body {
+  margin-top: 4px;
+}
+
+.pending-item-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: #888;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pending-item-image {
+  display: block;
+  max-width: 200px;
+  max-height: 120px;
+  border-radius: 6px;
+  object-fit: cover;
 }
 
 /* MCP 工具调用状态 */
@@ -638,40 +695,6 @@ body {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-/* ---------- 右键引用卡片（Markdown 引用风格） ---------- */
-
-.quote-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin-bottom: 8px;
-  padding: 6px 10px;
-  border-left: 3px solid #d9d9d9;
-  border-radius: 0 6px 6px 0;
-  background: #fafafa;
-}
-
-.quote-card-close {
-  color: #bbb;
-  cursor: pointer;
-}
-
-.quote-card-close:hover {
-  color: #666;
-}
-
-.quote-card-text {
-  display: -webkit-box;
-  flex: 1;
-  min-width: 0;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-  color: #666;
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 /* ---------- 多来源来源条 ---------- */
