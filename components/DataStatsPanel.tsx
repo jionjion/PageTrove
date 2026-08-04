@@ -226,7 +226,7 @@ export function DataStatsPanel() {
             prefix={<MessageOutlined />}
             suffix={
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                个 / {stats.messageCount} 条消息
+                轮 / {stats.messageCount} 条消息
               </Typography.Text>
             }
           />
@@ -237,7 +237,7 @@ export function DataStatsPanel() {
             value={stats.tagCount}
             valueStyle={{ fontSize: 20 }}
             prefix={<TagsOutlined />}
-            suffix={<span style={{ fontSize: 12 }}>个</span>}
+            suffix={<span style={{ fontSize: 12 }}>枚</span>}
           />
         </Card>
       </div>
