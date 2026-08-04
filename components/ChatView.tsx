@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Input, Select } from 'antd';
+import { Alert, Button, Input, Select, Tooltip } from 'antd';
 import {
   AimOutlined,
   CaretDownOutlined,
@@ -801,49 +801,53 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
                   )}
                 </div>
                 <div className="msg-actions">
-                  <Button
-                    type="text"
-                    size="small"
-                    title="复制"
-                    icon={
-                      copiedIndex === index ? <CheckOutlined /> : <CopyOutlined />
-                    }
-                    onClick={() => void handleCopy(message.content, index)}
-                  />
-                  <Button
-                    type="text"
-                    size="small"
-                    title="有帮助"
-                    className={ratings[index] === 'like' ? 'rated' : undefined}
-                    icon={
-                      ratings[index] === 'like' ? <LikeFilled /> : <LikeOutlined />
-                    }
-                    onClick={() => handleRate(index, 'like')}
-                  />
-                  <Button
-                    type="text"
-                    size="small"
-                    title="没帮助"
-                    className={
-                      ratings[index] === 'dislike' ? 'rated' : undefined
-                    }
-                    icon={
-                      ratings[index] === 'dislike' ? (
-                        <DislikeFilled />
-                      ) : (
-                        <DislikeOutlined />
-                      )
-                    }
-                    onClick={() => handleRate(index, 'dislike')}
-                  />
-                  <Button
-                    type="text"
-                    size="small"
-                    title="重新回答"
-                    icon={<ReloadOutlined />}
-                    disabled={busy}
-                    onClick={() => void handleRegenerate(index)}
-                  />
+                  <Tooltip title="复制">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={
+                        copiedIndex === index ? <CheckOutlined /> : <CopyOutlined />
+                      }
+                      onClick={() => void handleCopy(message.content, index)}
+                    />
+                  </Tooltip>
+                  <Tooltip title="有帮助">
+                    <Button
+                      type="text"
+                      size="small"
+                      className={ratings[index] === 'like' ? 'rated' : undefined}
+                      icon={
+                        ratings[index] === 'like' ? <LikeFilled /> : <LikeOutlined />
+                      }
+                      onClick={() => handleRate(index, 'like')}
+                    />
+                  </Tooltip>
+                  <Tooltip title="没帮助">
+                    <Button
+                      type="text"
+                      size="small"
+                      className={
+                        ratings[index] === 'dislike' ? 'rated' : undefined
+                      }
+                      icon={
+                        ratings[index] === 'dislike' ? (
+                          <DislikeFilled />
+                        ) : (
+                          <DislikeOutlined />
+                        )
+                      }
+                      onClick={() => handleRate(index, 'dislike')}
+                    />
+                  </Tooltip>
+                  <Tooltip title="重新回答">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      disabled={busy}
+                      onClick={() => void handleRegenerate(index)}
+                    />
+                  </Tooltip>
                 </div>
               </div>
             )}
@@ -992,35 +996,40 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
                   onClick={handleStop}
                 />
               ) : (
+                <Tooltip title="发送">
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<SendOutlined />}
+                    disabled={!input.trim()}
+                    onClick={() => void handleSend()}
+                  />
+                </Tooltip>
+              )}
+              <Tooltip title="选取页面元素">
                 <Button
                   size="small"
-                  type="primary"
-                  title="发送"
-                  icon={<SendOutlined />}
-                  disabled={!input.trim()}
-                  onClick={() => void handleSend()}
+                  icon={<AimOutlined />}
+                  loading={picking}
+                  disabled={busy}
+                  onClick={() => void handlePick()}
                 />
-              )}
-              <Button
-                size="small"
-                title="选取页面元素"
-                icon={<AimOutlined />}
-                loading={picking}
-                disabled={busy}
-                onClick={() => void handlePick()}
-              />
-              <Button
-                size="small"
+              </Tooltip>
+              <Tooltip
                 title={
                   capabilities.vision
                     ? '框选页面截图'
                     : '当前模型未启用图片输入'
                 }
-                icon={<ScissorOutlined />}
-                loading={capturing}
-                disabled={busy || !capabilities.vision}
-                onClick={() => void handleCapture()}
-              />
+              >
+                <Button
+                  size="small"
+                  icon={<ScissorOutlined />}
+                  loading={capturing}
+                  disabled={busy || !capabilities.vision}
+                  onClick={() => void handleCapture()}
+                />
+              </Tooltip>
             </div>
           </div>
         </div>

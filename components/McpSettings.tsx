@@ -1,27 +1,8 @@
-import { useState } from 'react';
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Input,
-  Popconfirm,
-  Select,
-  Space,
-  Switch,
-  Tag,
-  Typography,
-} from 'antd';
-import {
-  ApiOutlined,
-  DeleteOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-} from '@ant-design/icons';
-import type { McpServerSettings } from '@/types/settings';
-import {
-  listMcpTools,
-  type McpConnectionTestResult,
-} from '@/services/mcp-client';
+import {useState} from 'react';
+import {Alert, Button, Checkbox, Input, Popconfirm, Select, Space, Switch, Tag, Typography,} from 'antd';
+import {ApiOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined,} from '@ant-design/icons';
+import type {McpServerSettings} from '@/types/settings';
+import {listMcpTools, type McpConnectionTestResult,} from '@/services/mcp-client';
 
 interface Props {
   value: McpServerSettings[];
@@ -34,11 +15,11 @@ interface TestState {
   result?: McpConnectionTestResult;
 }
 
-export function McpSettings({ value, onChange }: Props) {
+export function McpSettings({value, onChange}: Props) {
   const [testStates, setTestStates] = useState<Record<string, TestState>>({});
 
   const updateServer = (id: string, patch: Partial<McpServerSettings>) => {
-    onChange(value.map((server) => (server.id === id ? { ...server, ...patch } : server)));
+    onChange(value.map((server) => (server.id === id ? {...server, ...patch} : server)));
   };
 
   const addServer = () => {
@@ -56,7 +37,7 @@ export function McpSettings({ value, onChange }: Props) {
   const removeServer = (id: string) => {
     onChange(value.filter((server) => server.id !== id));
     setTestStates((current) => {
-      const next = { ...current };
+      const next = {...current};
       delete next[id];
       return next;
     });
@@ -65,13 +46,13 @@ export function McpSettings({ value, onChange }: Props) {
   const testServer = async (server: McpServerSettings) => {
     setTestStates((current) => ({
       ...current,
-      [server.id]: { loading: true },
+      [server.id]: {loading: true},
     }));
     try {
       const result = await listMcpTools(server, false);
       setTestStates((current) => ({
         ...current,
-        [server.id]: { result },
+        [server.id]: {result},
       }));
     } catch (error) {
       setTestStates((current) => ({
@@ -87,40 +68,35 @@ export function McpSettings({ value, onChange }: Props) {
     const disabled = new Set(server.disabledTools);
     if (enabled) disabled.delete(toolName);
     else disabled.add(toolName);
-    updateServer(server.id, { disabledTools: [...disabled] });
+    updateServer(server.id, {disabledTools: [...disabled]});
   };
 
   return (
-    <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+    <Space direction="vertical" size={12} style={{display: 'flex'}}>
       {value.map((server) => {
         const state = testStates[server.id];
         return (
           <div className="mcp-server" key={server.id}>
             <div className="mcp-server-title">
-              <ApiOutlined />
+              <ApiOutlined/>
               <Input
                 value={server.name}
                 placeholder="服务名称"
                 onChange={(event) =>
-                  updateServer(server.id, { name: event.target.value })
+                  updateServer(server.id, {name: event.target.value})
                 }
               />
               <Switch
                 checked={server.enabled}
                 checkedChildren="启用"
                 unCheckedChildren="停用"
-                onChange={(enabled) => updateServer(server.id, { enabled })}
+                onChange={(enabled) => updateServer(server.id, {enabled})}
               />
               <Popconfirm
                 title="删除这个 MCP 服务？"
                 onConfirm={() => removeServer(server.id)}
               >
-                <Button
-                  type="text"
-                  danger
-                  title="删除"
-                  icon={<DeleteOutlined />}
-                />
+                <Button type="text" danger icon={<DeleteOutlined/>}/>
               </Popconfirm>
             </div>
 
@@ -129,18 +105,18 @@ export function McpSettings({ value, onChange }: Props) {
               value={server.url}
               placeholder="https://example.com/mcp"
               onChange={(event) =>
-                updateServer(server.id, { url: event.target.value })
+                updateServer(server.id, {url: event.target.value})
               }
             />
 
             <Typography.Text strong className="options-section-label">传输协议</Typography.Text>
             <Select
-              style={{ width: '100%' }}
+              style={{width: '100%'}}
               value={server.transport}
-              onChange={(transport) => updateServer(server.id, { transport })}
+              onChange={(transport) => updateServer(server.id, {transport})}
               options={[
-                { value: 'streamable-http', label: 'Streamable HTTP' },
-                { value: 'sse', label: 'SSE（旧版）' },
+                {value: 'streamable-http', label: 'Streamable HTTP'},
+                {value: 'sse', label: 'SSE（旧版）'},
               ]}
             />
 
@@ -152,7 +128,7 @@ export function McpSettings({ value, onChange }: Props) {
               value={server.bearerToken}
               placeholder="只保存在本机"
               onChange={(event) =>
-                updateServer(server.id, { bearerToken: event.target.value })
+                updateServer(server.id, {bearerToken: event.target.value})
               }
             />
 
@@ -160,18 +136,18 @@ export function McpSettings({ value, onChange }: Props) {
               自定义请求头 JSON（可选）
             </Typography.Text>
             <Input.TextArea
-              autoSize={{ minRows: 2, maxRows: 5 }}
+              autoSize={{minRows: 2, maxRows: 5}}
               value={server.headersJson}
               placeholder={'{"X-API-Key":"..."}'}
               onChange={(event) =>
-                updateServer(server.id, { headersJson: event.target.value })
+                updateServer(server.id, {headersJson: event.target.value})
               }
             />
 
             <div className="mcp-test-row">
               <Button
                 size="small"
-                icon={<ReloadOutlined />}
+                icon={<ReloadOutlined/>}
                 loading={state?.loading}
                 disabled={!server.url.trim()}
                 onClick={() => void testServer(server)}
@@ -190,7 +166,7 @@ export function McpSettings({ value, onChange }: Props) {
             </div>
 
             {state?.error && (
-              <Alert type="error" showIcon title={state.error} />
+              <Alert type="error" showIcon title={state.error}/>
             )}
 
             {state?.result && (
@@ -223,7 +199,7 @@ export function McpSettings({ value, onChange }: Props) {
         );
       })}
 
-      <Button type="dashed" icon={<PlusOutlined />} block onClick={addServer}>
+      <Button type="dashed" icon={<PlusOutlined/>} block onClick={addServer}>
         添加 MCP 服务
       </Button>
     </Space>
