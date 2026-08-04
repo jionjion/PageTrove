@@ -39,6 +39,7 @@ import {getSettings, saveSettings} from '@/services/settings-store';
 import {type ExtensionSettings, getModelCapabilities, PROVIDERS,} from '@/types/settings';
 import {AppError, toErrorMessage} from '@/utils/errors';
 import {useChatAutoScroll} from '@/hooks/useChatAutoScroll';
+import {linkifyCitations} from '@/services/citations';
 
 /** App 头部图标下发的指令：开启新会话 / 打开历史会话 / 开启多来源探究会话。 */
 export type ChatCommand =
@@ -708,19 +709,6 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
 
   const activeScope = session?.scope ?? draftScope;
 
-  /**
-   * 将回答中的 [S1] 引用标注替换为指向对应来源的 Markdown 链接；
-   * 已是链接形式（[S1](…)）的不重复处理，超出来源数的编号保持原样。
-   */
-  const linkifyCitations = (markdown: string): string => {
-    const sources = activeScope?.sources;
-    if (!sources || sources.length === 0) return markdown;
-    return markdown.replace(/\[S(\d+)\](?!\()/g, (matched, num: string) => {
-      const source = sources[Number(num) - 1];
-      return source ? `[S${num}](${source.url})` : matched;
-    });
-  };
-
   /** 引用链接（S1、S2…）渲染为上标小徽标，悬停显示来源标题；其余链接新标签页打开。 */
   const markdownComponents = {
     a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
@@ -764,7 +752,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
                 components={markdownComponents}
               >
                 {message.role === 'assistant'
-                  ? linkifyCitations(message.content)
+                  ? linkifyCitations(message.content, activeScope?.sources)
                   : message.content}
               </ReactMarkdown>
             </div>
@@ -851,7 +839,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
                   remarkPlugins={[remarkGfm]}
                   components={markdownComponents}
                 >
-                  {linkifyCitations(streaming)}
+                  {linkifyCitations(streaming, activeScope?.sources)}
                 </ReactMarkdown>
               ) : (
                 <span className="msg-generating">
