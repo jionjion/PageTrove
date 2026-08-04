@@ -45,7 +45,7 @@ export function ResearchSetupView({ active, onStart }: Props) {
     for (const tab of all) {
       if (!tab.id || !tab.url) continue;
       if (!/^https?:/.test(tab.url) || isUnsupportedUrl(tab.url)) continue;
-      let domain = '';
+      let domain: string;
       try {
         domain = new URL(tab.url).hostname;
       } catch {
