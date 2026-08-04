@@ -17,6 +17,9 @@ importers:
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
       antd:
         specifier: ^6.5.1
         version: 6.5.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -44,6 +47,9 @@ importers:
       turndown-plugin-gfm:
         specifier: ^1.0.2
         version: 1.0.2
+      unist-util-visit:
+        specifier: ^5.1.0
+        version: 5.1.0
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -72,12 +78,21 @@ importers:
       prettier:
         specifier: ^3.9.6
         version: 3.9.6
+      remark-parse:
+        specifier: ^11.0.0
+        version: 11.0.0
+      remark-stringify:
+        specifier: ^11.0.0
+        version: 11.0.0
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
       typescript-eslint:
         specifier: ^8.66.0
         version: 8.66.0(eslint@10.8.0(jiti@2.7.0))(typescript@5.9.3)
+      unified:
+        specifier: ^11.0.5
+        version: 11.0.5
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@26.1.1)(vite@8.1.5(@types/node@26.1.1)(esbuild@0.27.7)(jiti@2.7.0))

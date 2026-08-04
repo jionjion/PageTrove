@@ -246,6 +246,8 @@ export interface ChatContext {
   content: string;
   /** 多来源探究会话解析后的来源列表；存在时使用多来源 Prompt。 */
   sources?: ResolvedChatSource[];
+  /** 本次被跳过的失效来源（如收藏已删除），用于提示模型不要沿用历史引用。 */
+  unavailableSources?: string[];
 }
 
 const MULTI_SOURCE_PROMPT = `你是"拾页"的多来源研究助手。
@@ -264,7 +266,11 @@ function buildChatSystemPrompt(ctx: ChatContext): string {
       (source) =>
         `[${source.citation}]\n标题：${source.title}\n地址：${source.url}\n内容：\n${source.content || '（内容为空）'}`,
     );
-    return `${MULTI_SOURCE_PROMPT}\n\n以下是本次可用的资料：\n\n${blocks.join('\n\n')}`;
+    const unavailable =
+      ctx.unavailableSources && ctx.unavailableSources.length > 0
+        ? `\n\n注意：以下来源已失效，本次未提供其内容。历史对话中的引用编号可能与本次不同；请仅使用上面资料的编号标注，不要沿用历史回答里的编号，也不要再引用失效来源：${ctx.unavailableSources.join('、')}`
+        : '';
+    return `${MULTI_SOURCE_PROMPT}\n\n以下是本次可用的资料：\n\n${blocks.join('\n\n')}${unavailable}`;
   }
 
   return `你是"拾页"的网页问答助手。请基于下面的网页内容回答用户的问题。

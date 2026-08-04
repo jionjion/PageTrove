@@ -11,6 +11,22 @@ export interface ChatMessage {
   elapsedMs?: number;
   /** 本次回答调用过的 MCP 工具摘要。 */
   toolCalls?: ChatToolCall[];
+  /**
+   * 生成当时的引用映射（仅多来源 assistant 消息）。
+   * 渲染 [S1] 时只读自身映射，不依赖当前 scope 下标，
+   * 避免来源删除/失效重编号后历史回答错指来源。
+   */
+  citationRefs?: CitationRef[];
+}
+
+/** 单条 assistant 消息的引用条目：编号→来源快照。 */
+export interface CitationRef {
+  /** 引用编号，如 'S1' */
+  citation: string;
+  /** 对应 ResolvedChatSource.id */
+  sourceId: string;
+  title: string;
+  url: string;
 }
 
 export interface ChatToolCall {
