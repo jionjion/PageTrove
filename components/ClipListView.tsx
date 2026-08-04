@@ -9,6 +9,7 @@ import {
   Select,
   Space,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
@@ -313,15 +314,16 @@ export function ClipListView({ active, onChat, onResearch }: Props) {
                 探究
               </Button>
             )}
-            <Button
-              size="small"
-              icon={<DownloadOutlined />}
-              disabled={selected.size === 0}
-              onClick={() => void handleExportSelected()}
-              title="导出文件可能包含你保存的网页内容和备注"
-            >
-              导出
-            </Button>
+            <Tooltip title="导出文件可能包含你保存的网页内容和备注">
+              <Button
+                size="small"
+                icon={<DownloadOutlined />}
+                disabled={selected.size === 0}
+                onClick={() => void handleExportSelected()}
+              >
+                导出
+              </Button>
+            </Tooltip>
           </Space>
         </div>
       )}
@@ -461,14 +463,15 @@ export function ClipListView({ active, onChat, onResearch }: Props) {
                       对话
                     </Button>
                   )}
-                  <Button
-                    size="small"
-                    icon={<DownloadOutlined />}
-                    title="导出文件可能包含你保存的网页内容和备注"
-                    onClick={() => void handleExportSingle(detail)}
-                  >
-                    导出 Markdown
-                  </Button>
+                  <Tooltip title="导出文件可能包含你保存的网页内容和备注">
+                    <Button
+                      size="small"
+                      icon={<DownloadOutlined />}
+                      onClick={() => void handleExportSingle(detail)}
+                    >
+                      导出 Markdown
+                    </Button>
+                  </Tooltip>
                   <Button
                     size="small"
                     type="primary"

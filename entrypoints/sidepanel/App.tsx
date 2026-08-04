@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {browser} from 'wxt/browser';
-import {Button, Typography} from 'antd';
+import {Button, Tooltip, Typography} from 'antd';
 import {FileSearchOutlined, FolderOpenOutlined, HistoryOutlined, PlusOutlined, SettingOutlined, StarOutlined,} from '@ant-design/icons';
 import {CurrentPageView} from '@/components/CurrentPageView';
 import {ClipListView} from '@/components/ClipListView';
@@ -62,46 +62,52 @@ export default function App() {
           {chatTitle}
         </Typography.Title>
         <div className="app-header-actions">
-          <Button
-            type="text"
-            title="新对话（针对当前网页）"
-            icon={<PlusOutlined />}
-            onClick={() => dispatchChat({ kind: 'new' })}
-          />
-          <Button
-            type="text"
-            title="历史对话"
-            style={iconStyle('history')}
-            icon={<HistoryOutlined />}
-            onClick={() => toggleView('history')}
-          />
-          <Button
-            type="text"
-            title="收藏当前网页"
-            style={iconStyle('current')}
-            icon={<StarOutlined />}
-            onClick={() => toggleView('current')}
-          />
-          <Button
-            type="text"
-            title="我的收藏"
-            style={iconStyle('clips')}
-            icon={<FolderOpenOutlined />}
-            onClick={() => toggleView('clips')}
-          />
-          <Button
-            type="text"
-            title="探究多个网页"
-            style={iconStyle('research')}
-            icon={<FileSearchOutlined />}
-            onClick={() => toggleView('research')}
-          />
-          <Button
-            type="text"
-            title="设置"
-            icon={<SettingOutlined />}
-            onClick={() => void browser.runtime.openOptionsPage()}
-          />
+          <Tooltip title="新对话（针对当前网页）">
+            <Button
+              type="text"
+              icon={<PlusOutlined />}
+              onClick={() => dispatchChat({ kind: 'new' })}
+            />
+          </Tooltip>
+          <Tooltip title="历史对话">
+            <Button
+              type="text"
+              style={iconStyle('history')}
+              icon={<HistoryOutlined />}
+              onClick={() => toggleView('history')}
+            />
+          </Tooltip>
+          <Tooltip title="收藏当前网页">
+            <Button
+              type="text"
+              style={iconStyle('current')}
+              icon={<StarOutlined />}
+              onClick={() => toggleView('current')}
+            />
+          </Tooltip>
+          <Tooltip title="我的收藏">
+            <Button
+              type="text"
+              style={iconStyle('clips')}
+              icon={<FolderOpenOutlined />}
+              onClick={() => toggleView('clips')}
+            />
+          </Tooltip>
+          <Tooltip title="探究多个网页">
+            <Button
+              type="text"
+              style={iconStyle('research')}
+              icon={<FileSearchOutlined />}
+              onClick={() => toggleView('research')}
+            />
+          </Tooltip>
+          <Tooltip title="设置">
+            <Button
+              type="text"
+              icon={<SettingOutlined />}
+              onClick={() => void browser.runtime.openOptionsPage()}
+            />
+          </Tooltip>
         </div>
       </header>
 
