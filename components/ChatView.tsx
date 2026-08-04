@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Input, Select, Tooltip } from 'antd';
+import React, {useEffect, useRef, useState} from 'react';
+import {Alert, Button, Input, Select, Tooltip} from 'antd';
 import {
   AimOutlined,
+  ArrowDownOutlined,
   CaretDownOutlined,
   CaretRightOutlined,
   CaretUpOutlined,
@@ -14,7 +15,6 @@ import {
   LikeFilled,
   LikeOutlined,
   LoadingOutlined,
-  PictureOutlined,
   ReadOutlined,
   ReloadOutlined,
   ScissorOutlined,
@@ -24,36 +24,21 @@ import {
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { browser } from 'wxt/browser';
-import type { ChatScope, ChatSession, ChatToolCall } from '@/types/chat';
-import type { QuoteChatIntent } from '@/types/chat-intent';
-import { getChat, saveChat } from '@/services/chat-store';
-import { getClip } from '@/services/clip-store';
-import {
-  streamChat,
-  type ChatContext,
-  type ChatToolActivity,
-  type ResolvedChatSource,
-} from '@/services/deepseek-client';
-import {
-  selectRelevantExcerpt,
-  sourceBudget,
-} from '@/services/content-excerpts';
-import { extractPage } from '@/services/page-extractor';
-import { ChatSourceList } from '@/components/ChatSourceList';
-import { pickPageElement } from '@/services/element-picker';
-import {
-  captureSelectedRegion,
-  type CapturedImage,
-} from '@/services/screenshot-capture';
-import { getSettings, saveSettings } from '@/services/settings-store';
-import {
-  PROVIDERS,
-  getModelCapabilities,
-  type ExtensionSettings,
-} from '@/types/settings';
-import { AppError, toErrorMessage } from '@/utils/errors';
-import { useChatAutoScroll } from '@/hooks/useChatAutoScroll';
+import {browser} from 'wxt/browser';
+import type {ChatScope, ChatSession, ChatToolCall} from '@/types/chat';
+import type {QuoteChatIntent} from '@/types/chat-intent';
+import {getChat, saveChat} from '@/services/chat-store';
+import {getClip} from '@/services/clip-store';
+import {type ChatContext, type ChatToolActivity, type ResolvedChatSource, streamChat,} from '@/services/deepseek-client';
+import {selectRelevantExcerpt, sourceBudget,} from '@/services/content-excerpts';
+import {extractPage} from '@/services/page-extractor';
+import {ChatSourceList} from '@/components/ChatSourceList';
+import {pickPageElement} from '@/services/element-picker';
+import {type CapturedImage, captureSelectedRegion,} from '@/services/screenshot-capture';
+import {getSettings, saveSettings} from '@/services/settings-store';
+import {type ExtensionSettings, getModelCapabilities, PROVIDERS,} from '@/types/settings';
+import {AppError, toErrorMessage} from '@/utils/errors';
+import {useChatAutoScroll} from '@/hooks/useChatAutoScroll';
 
 /** App 头部图标下发的指令：开启新会话 / 打开历史会话 / 开启多来源探究会话。 */
 export type ChatCommand =
@@ -153,6 +138,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     handleScroll: handleMessagesScroll,
     followLatest,
     resumeLatest,
+    awayFromBottom,
   } = useChatAutoScroll();
 
   const [chatSettings, setChatSettings] = useState<ExtensionSettings>();
@@ -988,6 +974,15 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
               options={modelOptions.map((model) => ({ value: model, label: model }))}
             />
             <div className="chat-input-actions">
+              {awayFromBottom && (
+                <Tooltip title="回到底部">
+                  <Button
+                    size="small"
+                    icon={<ArrowDownOutlined />}
+                    onClick={() => resumeLatest()}
+                  />
+                </Tooltip>
+              )}
               {busy ? (
                 <Button
                   size="small"
