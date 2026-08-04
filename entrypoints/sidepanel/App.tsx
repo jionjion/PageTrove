@@ -1,23 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { browser } from 'wxt/browser';
-import { Button, Typography } from 'antd';
-import {
-  ExperimentOutlined,
-  FolderOpenOutlined,
-  HistoryOutlined,
-  PlusOutlined,
-  SettingOutlined,
-  StarOutlined,
-} from '@ant-design/icons';
-import { CurrentPageView } from '@/components/CurrentPageView';
-import { ClipListView } from '@/components/ClipListView';
-import { ChatView, type ChatCommand } from '@/components/ChatView';
-import { ChatHistoryView } from '@/components/ChatHistoryView';
-import { ResearchSetupView } from '@/components/ResearchSetupView';
-import {
-  onQuoteIntentChanged,
-  takeNextQuoteIntent,
-} from '@/services/chat-intent-store';
+import {useEffect, useRef, useState} from 'react';
+import {browser} from 'wxt/browser';
+import {Button, Typography} from 'antd';
+import {FileSearchOutlined, FolderOpenOutlined, HistoryOutlined, PlusOutlined, SettingOutlined, StarOutlined,} from '@ant-design/icons';
+import {CurrentPageView} from '@/components/CurrentPageView';
+import {ClipListView} from '@/components/ClipListView';
+import {type ChatCommand, ChatView} from '@/components/ChatView';
+import {ChatHistoryView} from '@/components/ChatHistoryView';
+import {ResearchSetupView} from '@/components/ResearchSetupView';
+import {onQuoteIntentChanged, takeNextQuoteIntent,} from '@/services/chat-intent-store';
 
 type View = 'chat' | 'research' | 'history' | 'current' | 'clips';
 
@@ -80,13 +70,6 @@ export default function App() {
           />
           <Button
             type="text"
-            title="探究多个网页"
-            style={iconStyle('research')}
-            icon={<ExperimentOutlined />}
-            onClick={() => toggleView('research')}
-          />
-          <Button
-            type="text"
             title="历史对话"
             style={iconStyle('history')}
             icon={<HistoryOutlined />}
@@ -105,6 +88,13 @@ export default function App() {
             style={iconStyle('clips')}
             icon={<FolderOpenOutlined />}
             onClick={() => toggleView('clips')}
+          />
+          <Button
+            type="text"
+            title="探究多个网页"
+            style={iconStyle('research')}
+            icon={<FileSearchOutlined />}
+            onClick={() => toggleView('research')}
           />
           <Button
             type="text"
