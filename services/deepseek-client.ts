@@ -41,14 +41,19 @@ const SYSTEM_PROMPT_WITH_CONTENT = `你是一个"有趣网站收藏整理助手"
 2. 如果网页信息不足，应明确体现"信息不足"。
 3. 摘要用于让用户快速了解这个收藏：说明网站是什么、有什么内容、为什么值得收藏，控制在100个汉字以内。
 4. 标签输出3至5个。
-5. content 为清洗后的正文：保留文章主体内容和原文表述，去掉导航、广告、推荐、评论等噪音；不做概括改写。正文本身很短或没有文章主体时输出空字符串。
-6. summary 和 tags 不要输出 Markdown；content 保持纯文本段落，用换行分段。
+5. content 是必填字段，为清洗整理后的正文，绝对不能省略这个字段：
+   - 删掉导航、菜单、广告、推荐位、相关文章、评论、页脚、订阅提示等噪音。
+   - 正文的信息要完整保留：所有段落、章节、要点都要输出，不要概括压缩成摘要，也不要只输出开头。原文有多长，content 就应该差不多多长，长输出是预期内的。
+   - 用 Markdown 还原文章结构：章节标题用 #/##/### ，列表用 - 或 1. ，表格用 Markdown 表格，代码用 \`\`\` 代码块，段落间空行分隔。
+   - 表述尽量沿用原文，不要自己发挥。
+   - 仅当正文本身很短或页面没有文章主体时，content 输出空字符串 ""。
+6. summary 和 tags 不要输出 Markdown；content 使用 Markdown 格式。
 7. 只输出符合下面结构的 json，不要输出其他内容：
 
 {
   "summary": "摘要",
   "tags": ["标签1", "标签2", "标签3"],
-  "content": "清洗后的正文",
+  "content": "Markdown 格式的正文",
   "confidence": 0.85
 }
 
@@ -131,6 +136,7 @@ async function requestChatCompletion(
   settings: ExtensionSettings,
   snapshot: PageSnapshot,
   note: string,
+  refineContent: boolean,
 ): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 180_000);
@@ -150,14 +156,17 @@ async function requestChatCompletion(
           messages: [
             {
               role: 'system',
-              content: settings.refineContent
+              content: refineContent
                 ? SYSTEM_PROMPT_WITH_CONTENT
                 : SYSTEM_PROMPT,
             },
             { role: 'user', content: buildUserPrompt(snapshot, note) },
           ],
           response_format: { type: 'json_object' },
-          temperature: 1.0,
+          temperature: 0.3,
+          // 整理任务不需要深度思考；两种字段兼容不同网关（DashScope 顶层 / vLLM chat_template_kwargs）
+          enable_thinking: false,
+          chat_template_kwargs: { enable_thinking: false },
           stream: false,
         }),
         signal: controller.signal,
@@ -190,6 +199,7 @@ export async function analyzePage(
   snapshot: PageSnapshot,
   note: string,
   settings: ExtensionSettings,
+  refineContent: boolean,
 ): Promise<AnalyzeResult> {
   if (!settings.apiKey.trim()) {
     throw new AppError('MISSING_API_KEY');
@@ -202,7 +212,12 @@ export async function analyzePage(
   // 输出解析失败时允许重试一次
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const content = await requestChatCompletion(settings, snapshot, note);
+    const content = await requestChatCompletion(
+      settings,
+      snapshot,
+      note,
+      refineContent,
+    );
     try {
       return validateAnalyzeResult(JSON.parse(content));
     } catch (error) {
