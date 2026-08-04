@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const BOTTOM_THRESHOLD = 64;
 
@@ -10,6 +10,15 @@ export function useChatAutoScroll() {
   const containerRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number>();
   const followingRef = useRef(true);
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
+
+  const updateAwayFromBottom = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const distanceToBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    setAwayFromBottom(distanceToBottom > BOTTOM_THRESHOLD);
+  }, []);
 
   const cancelScheduledScroll = useCallback(() => {
     if (frameRef.current === undefined) return;
@@ -29,13 +38,14 @@ export function useChatAutoScroll() {
         const container = containerRef.current;
         if (!container) return;
         container.scrollTo({ top: container.scrollHeight, behavior });
+        updateAwayFromBottom();
 
         if (force) {
           followingRef.current = true;
         }
       });
     },
-    [cancelScheduledScroll],
+    [cancelScheduledScroll, updateAwayFromBottom],
   );
 
   const followLatest = useCallback(
@@ -59,6 +69,7 @@ export function useChatAutoScroll() {
       container.scrollHeight - container.scrollTop - container.clientHeight;
     const isNearBottom = distanceToBottom <= BOTTOM_THRESHOLD;
     followingRef.current = isNearBottom;
+    setAwayFromBottom(!isNearBottom);
   }, []);
 
   useEffect(() => cancelScheduledScroll, [cancelScheduledScroll]);
@@ -68,5 +79,6 @@ export function useChatAutoScroll() {
     handleScroll,
     followLatest,
     resumeLatest,
+    awayFromBottom,
   };
 }
