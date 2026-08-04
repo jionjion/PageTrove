@@ -24,7 +24,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {browser} from 'wxt/browser';
-import type {ChatScope, ChatSession, ChatToolCall} from '@/types/chat';
+import type {ChatScope, ChatSession, ChatToolCall, CitationRef} from '@/types/chat';
 import type {QuoteChatIntent} from '@/types/chat-intent';
 import {getChat, saveChat} from '@/services/chat-store';
 import {getClip} from '@/services/clip-store';
@@ -39,7 +39,7 @@ import {getSettings, saveSettings} from '@/services/settings-store';
 import {type ExtensionSettings, getModelCapabilities, PROVIDERS,} from '@/types/settings';
 import {AppError, toErrorMessage} from '@/utils/errors';
 import {useChatAutoScroll} from '@/hooks/useChatAutoScroll';
-import {linkifyCitations} from '@/services/citations';
+import {remarkCitations, toCitationRefs} from '@/services/citations';
 
 /** App 头部图标下发的指令：开启新会话 / 打开历史会话 / 开启多来源探究会话。 */
 export type ChatCommand =
@@ -128,6 +128,8 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
   const [picking, setPicking] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [streaming, setStreaming] = useState<string>();
+  /** 当次流式回答的引用映射,回答保存后随消息持久化。 */
+  const [streamingRefs, setStreamingRefs] = useState<CitationRef[]>();
   const [toolActivities, setToolActivities] = useState<ChatToolActivity[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -204,6 +206,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     setScopeNotice(undefined);
     setError(undefined);
     setStreaming(undefined);
+    setStreamingRefs(undefined);
     setToolActivities([]);
     setInput('');
     setPicked(undefined);
@@ -348,6 +351,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
       url: '',
       content: '',
       sources,
+      unavailableSources: skipped.length > 0 ? skipped : undefined,
     };
   };
 
@@ -359,8 +363,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     },
     question: string,
   ): Promise<ChatContext> => {
-    if (value.scope) return resolveScopeContext(value.scope, question);
-    if (value.page) return value.page;
+    if (value.scope) return resolveScopeContext(value.scope, question);    if (value.page) return value.page;
     if (value.clipId) {
       const clip = await getClip(value.clipId);
       if (!clip) {
@@ -508,6 +511,8 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
       await saveChat(withUser);
 
       const context = await resolveContext(withUser, question);
+      const refs = toCitationRefs(context);
+      setStreamingRefs(refs);
       const controller = new AbortController();
       abortRef.current = controller;
       setStreaming('');
@@ -538,6 +543,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
             usage: reply.usage,
             elapsedMs: reply.elapsedMs,
             toolCalls: reply.toolCalls,
+            citationRefs: refs,
           },
         ],
         updatedAt: new Date().toISOString(),
@@ -551,6 +557,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
       }
     } finally {
       setStreaming(undefined);
+      setStreamingRefs(undefined);
       setBusy(false);
       abortRef.current = undefined;
     }
@@ -628,6 +635,8 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
         truncated,
         lastUser?.content ?? '',
       );
+      const refs = toCitationRefs(context);
+      setStreamingRefs(refs);
       const controller = new AbortController();
       abortRef.current = controller;
       setStreaming('');
@@ -652,6 +661,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
             usage: reply.usage,
             elapsedMs: reply.elapsedMs,
             toolCalls: reply.toolCalls,
+            citationRefs: refs,
           },
         ],
         updatedAt: new Date().toISOString(),
@@ -665,6 +675,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
       }
     } finally {
       setStreaming(undefined);
+      setStreamingRefs(undefined);
       setBusy(false);
       abortRef.current = undefined;
     }
@@ -709,20 +720,39 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
 
   const activeScope = session?.scope ?? draftScope;
 
+  /**
+   * legacy 兼容:旧 assistant 消息没有 citationRefs 时,
+   * 按当前 scope 下标现场构建映射(维持旧行为),不写回存储。
+   */
+  const legacyRefs: CitationRef[] | undefined = activeScope?.sources.length
+    ? activeScope.sources.map((source, index) => ({
+        citation: `S${index + 1}`,
+        sourceId: source.id,
+        title: source.title,
+        url: source.url,
+      }))
+    : undefined;
+
   /** 引用链接（S1、S2…）渲染为上标小徽标，悬停显示来源标题；其余链接新标签页打开。 */
   const markdownComponents = {
-    a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
-      const citation =
-        typeof children === 'string' && /^S(\d+)$/.test(children)
-          ? activeScope?.sources[Number(children.slice(1)) - 1]
-          : undefined;
+    a: ({
+      href,
+      title,
+      children,
+    }: {
+      href?: string;
+      title?: string;
+      children?: React.ReactNode;
+    }) => {
+      const isCitation =
+        typeof children === 'string' && /^S\d+$/.test(children);
       return (
         <a
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className={citation ? 'citation-link' : undefined}
-          title={citation ? citation.title || citation.url : href}
+          className={isCitation ? 'citation-link' : undefined}
+          title={isCitation ? title || href : href}
         >
           {children}
         </a>
@@ -748,12 +778,18 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
             )}
             <div className={`bubble ${message.role}`}>
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[
+                  remarkGfm,
+                  [
+                    remarkCitations,
+                    message.role === 'assistant'
+                      ? (message.citationRefs ?? legacyRefs)
+                      : undefined,
+                  ],
+                ]}
                 components={markdownComponents}
               >
-                {message.role === 'assistant'
-                  ? linkifyCitations(message.content, activeScope?.sources)
-                  : message.content}
+                {message.content}
               </ReactMarkdown>
             </div>
             {message.role === 'assistant' && (
@@ -836,10 +872,10 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
             <div className="bubble assistant">
               {streaming ? (
                 <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
+                  remarkPlugins={[remarkGfm, [remarkCitations, streamingRefs]]}
                   components={markdownComponents}
                 >
-                  {linkifyCitations(streaming, activeScope?.sources)}
+                  {streaming}
                 </ReactMarkdown>
               ) : (
                 <span className="msg-generating">
