@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import {browser} from 'wxt/browser';
-import {Alert, Button, Card, Input, Space, Typography} from 'antd';
+import {Alert, Button, Card, Checkbox, Input, Space, Tooltip, Typography} from 'antd';
 import {SettingOutlined,} from '@ant-design/icons';
 import type {AnalyzeResult} from '@/types/ai';
 import type {ClipIndexEntry, WebClip} from '@/types/clip';
@@ -18,6 +18,8 @@ export function CurrentPageView() {
     const tab = useCurrentTab();
 
     const [note, setNote] = useState('');
+    /** 本次收藏是否让 AI 顺带清洗正文（不持久化，切换网页重置） */
+    const [refineContent, setRefineContent] = useState(false);
     const [snapshot, setSnapshot] = useState<PageSnapshot>();
     const [analysis, setAnalysis] = useState<AnalyzeResult>();
 
@@ -30,6 +32,7 @@ export function CurrentPageView() {
     // 切换网页时重置状态
     useEffect(() => {
         setNote('');
+        setRefineContent(false);
         setSnapshot(undefined);
         setAnalysis(undefined);
         setError(undefined);
@@ -62,7 +65,7 @@ export function CurrentPageView() {
 
         setBusy('analyze');
         try {
-            const result = await analyzePage(snap, note, settings);
+            const result = await analyzePage(snap, note, settings, refineContent);
             setAnalysis(result);
         } catch (e) {
             if (e instanceof AppError && e.code === 'MISSING_API_KEY') {
@@ -183,6 +186,18 @@ export function CurrentPageView() {
                     onChange={(e) => setNote(e.target.value)}
                 />
             </Card>
+
+            {!analysis && (
+                <Tooltip title="整理时额外让 AI 提取正文主体、去掉广告导航等噪音，更耗 token">
+                    <Checkbox
+                        checked={refineContent}
+                        disabled={busy !== undefined}
+                        onChange={(e) => setRefineContent(e.target.checked)}
+                    >
+                        整理时清洗正文
+                    </Checkbox>
+                </Tooltip>
+            )}
 
             <Button
                 type="primary"

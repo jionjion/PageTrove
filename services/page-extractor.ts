@@ -1,5 +1,7 @@
 import { browser } from 'wxt/browser';
 import { Readability } from '@mozilla/readability';
+import TurndownService from 'turndown';
+import { gfm } from 'turndown-plugin-gfm';
 import type { PageSnapshot } from '@/types/page-snapshot';
 import { AppError } from '@/utils/errors';
 import { isUnsupportedUrl } from '@/services/url-utils';
@@ -12,8 +14,24 @@ export interface ExtractOptions {
 /** Readability 结果短于该长度时视为提取失败（可能只抓到片段） */
 const MIN_READABLE_LENGTH = 200;
 
+/** 把 Readability 提取出的文章 HTML 转成 Markdown（保留标题、列表、表格、代码块） */
+const turndown = new TurndownService({
+  headingStyle: 'atx',
+  codeBlockStyle: 'fenced',
+  bulletListMarker: '-',
+});
+turndown.use(gfm);
+// 图片只保留占位，避免长 base64/跟踪链接污染正文
+turndown.addRule('image', {
+  filter: 'img',
+  replacement: (_content, node) => {
+    const alt = (node as HTMLElement).getAttribute('alt')?.trim();
+    return alt ? `[图: ${alt}]` : '';
+  },
+});
+
 /**
- * 用 Readability 从页面 HTML 中提取文章主体文本，
+ * 用 Readability 从页面 HTML 中提取文章主体，转为 Markdown，
  * 去掉导航、广告、推荐位等噪音。失败时返回 undefined。
  */
 function extractReadableText(
@@ -25,12 +43,13 @@ function extractReadableText(
     // DOMParser 不会执行脚本或加载资源，仅做离线解析。
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const article = new Readability(doc).parse();
-    const text = article?.textContent
-      ?.replace(/[ \t\u00a0]+/g, ' ')
-      .replace(/\s*\n\s*/g, '\n')
+    if (!article?.content) return undefined;
+    const markdown = turndown
+      .turndown(article.content)
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
-    if (text && text.length >= MIN_READABLE_LENGTH) {
-      return text.slice(0, maxLength);
+    if (markdown.length >= MIN_READABLE_LENGTH) {
+      return markdown.slice(0, maxLength);
     }
   } catch {
     // 解析失败时退回 innerText 提取结果。

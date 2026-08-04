@@ -200,12 +200,6 @@ export default function App() {
       <Label>网页采集</Label>
       <Space direction="vertical" size={8} style={{ display: 'flex' }}>
         <Checkbox
-              checked={settings.refineContent}
-              onChange={(e) => update({ refineContent: e.target.checked })}
-        >
-              整理时清洗正文
-        </Checkbox>
-        <Checkbox
           checked={settings.includeSelectedText}
           onChange={(e) => update({ includeSelectedText: e.target.checked })}
         >
