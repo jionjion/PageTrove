@@ -154,7 +154,8 @@ async function connectMcp(server: McpServerSettings): Promise<ConnectedClient> {
   return connectWithTransport(server, server.transport);
 }
 
-function normalizeTool(tool: unknown): McpToolSummary | undefined {
+/** 规范化服务端返回的工具定义（导出仅为可测性）。 */
+export function normalizeTool(tool: unknown): McpToolSummary | undefined {
   if (typeof tool !== 'object' || tool === null) return undefined;
   const value = tool as Record<string, unknown>;
   if (typeof value.name !== 'string' || !value.name.trim()) return undefined;
@@ -230,7 +231,8 @@ export async function listMcpTools(
   }
 }
 
-function modelToolName(serverIndex: number, toolIndex: number, name: string): string {
+/** 生成提供给模型的工具名（导出仅为可测性）。 */
+export function modelToolName(serverIndex: number, toolIndex: number, name: string): string {
   const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '_');
   return `mcp_${serverIndex}_${toolIndex}_${safeName}`.slice(0, 64);
 }
@@ -277,7 +279,8 @@ export async function collectEnabledMcpTools(
   };
 }
 
-function resultToText(result: unknown): string {
+/** 将工具调用结果压平为文本并截断（导出仅为可测性）。 */
+export function resultToText(result: unknown): string {
   if (typeof result !== 'object' || result === null) return String(result);
   const value = result as Record<string, unknown>;
   const parts: string[] = [];
