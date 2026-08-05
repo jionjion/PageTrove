@@ -1,7 +1,7 @@
 import type { Link, Parent, Root, Text } from 'mdast';
 import { visit } from 'unist-util-visit';
 import type { CitationRef } from '@/types/chat';
-import type { ChatContext } from '@/services/deepseek-client';
+import type { ChatContext } from '@/services/ai/provider';
 
 /** 从解析后的上下文提取消息级引用映射;无多来源时返回 undefined。 */
 export function toCitationRefs(context: ChatContext): CitationRef[] | undefined {

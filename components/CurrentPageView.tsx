@@ -7,7 +7,7 @@ import type {ClipIndexEntry, WebClip} from '@/types/clip';
 import type {PageSnapshot} from '@/types/page-snapshot';
 import {useCurrentTab} from '@/hooks/useCurrentTab';
 import {extractCurrentPage} from '@/services/page-extractor';
-import {analyzePage} from '@/services/deepseek-client';
+import {analyzePage} from '@/services/ai/analyze-page';
 import {getSettings} from '@/services/settings-store';
 import {createClip, findByNormalizedUrl, updateClip,} from '@/services/clip-store';
 import {normalizeUrl} from '@/services/url-utils';
