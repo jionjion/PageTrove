@@ -74,6 +74,15 @@ export function ChatMessageItem({
             )}
           </div>
           <div className="msg-actions">
+            <Tooltip title="重新回答">
+              <Button
+                type="text"
+                size="small"
+                icon={<ReloadOutlined />}
+                disabled={busy}
+                onClick={() => onRegenerate(index)}
+              />
+            </Tooltip>
             <Tooltip title="复制">
               <Button
                 type="text"
@@ -100,15 +109,6 @@ export function ChatMessageItem({
                   rating === 'dislike' ? <DislikeFilled /> : <DislikeOutlined />
                 }
                 onClick={() => onRate(index, 'dislike')}
-              />
-            </Tooltip>
-            <Tooltip title="重新回答">
-              <Button
-                type="text"
-                size="small"
-                icon={<ReloadOutlined />}
-                disabled={busy}
-                onClick={() => onRegenerate(index)}
               />
             </Tooltip>
           </div>
