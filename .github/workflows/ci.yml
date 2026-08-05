@@ -38,3 +38,15 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Report chunk sizes
+        run: |
+          {
+            echo '## Build chunk sizes (chrome-mv3)'
+            echo ''
+            echo '| File | Size (KB) |'
+            echo '| --- | ---: |'
+            find .output/chrome-mv3 -name '*.js' -printf '%s\t%P\n' | sort -rn | while IFS=$'\t' read -r size file; do
+              echo "| $file | $((size / 1024)) |"
+            done
+          } | tee -a "$GITHUB_STEP_SUMMARY"
