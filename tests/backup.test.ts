@@ -10,7 +10,6 @@ import {
 import { createClip } from '@/services/clip-store';
 import { saveChat } from '@/services/chat-store';
 import {
-  exportBackup,
   previewBackup,
   importBackup,
 } from '@/services/backup';

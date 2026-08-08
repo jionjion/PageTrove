@@ -203,17 +203,20 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
 
   useEffect(() => {
     if (nonce > 0 && command) {
-      if (command.kind === 'new') {
-        if (command.quote) {
-          applyQuoteIntent(command.quote);
+      // 微任务中处理指令，避免在 effect 体内同步 setState 触发级联渲染
+      queueMicrotask(() => {
+        if (command.kind === 'new') {
+          if (command.quote) {
+            applyQuoteIntent(command.quote);
+          } else {
+            void startNewSession(command.clipId);
+          }
+        } else if (command.kind === 'new-scope') {
+          startScopeSession(command.scope);
         } else {
-          void startNewSession(command.clipId);
+          void openSession(command.sessionId);
         }
-      } else if (command.kind === 'new-scope') {
-        startScopeSession(command.scope);
-      } else {
-        void openSession(command.sessionId);
-      }
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nonce]);

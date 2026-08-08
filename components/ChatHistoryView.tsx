@@ -18,9 +18,7 @@ export function ChatHistoryView({ active, onOpen }: Props) {
   const [sessions, setSessions] = useState<ChatIndexEntry[]>([]);
   const [keyword, setKeyword] = useState('');
 
-  const refresh = useCallback(async () => {
-    setSessions(await getChatIndex());
-  }, []);
+  const refresh = useCallback(() => getChatIndex().then(setSessions), []);
 
   useEffect(() => {
     if (active) void refresh();

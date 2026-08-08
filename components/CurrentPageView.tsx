@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useState} from 'react';
 import {browser} from 'wxt/browser';
 import {Alert, Button, Card, Checkbox, Input, Space, Tooltip, Typography} from 'antd';
 import {SettingOutlined, StopOutlined} from '@ant-design/icons';
@@ -30,8 +30,10 @@ export function CurrentPageView() {
     const [duplicate, setDuplicate] = useState<ClipIndexEntry>();
     const [saved, setSaved] = useState(false);
 
-    // 切换网页时重置状态
-    useEffect(() => {
+    // 切换网页时重置状态（在渲染期调整状态，替代 effect）
+    const [lastUrl, setLastUrl] = useState(tab.url);
+    if (tab.url !== lastUrl) {
+        setLastUrl(tab.url);
         setNote('');
         setRefineContent(false);
         setSnapshot(undefined);
@@ -40,7 +42,7 @@ export function CurrentPageView() {
         setMissingKey(false);
         setDuplicate(undefined);
         setSaved(false);
-    }, [tab.url]);
+    }
 
     const handleAnalyze = async () => {
         setError(undefined);

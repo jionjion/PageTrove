@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Checkbox, Empty, Typography } from 'antd';
+import { Alert, Button, Checkbox, Typography } from 'antd';
+import { FileSearchOutlined } from '@ant-design/icons';
 import { browser } from 'wxt/browser';
 import type { ChatScope, ChatSourceRef } from '@/types/chat';
 import { extractPage } from '@/services/page-extractor';
@@ -7,6 +8,7 @@ import { getSettings } from '@/services/settings-store';
 import { isUnsupportedUrl } from '@/services/url-utils';
 import { MAX_SCOPE_TOTAL_CHARS } from '@/services/content-excerpts';
 import { toErrorMessage } from '@/utils/errors';
+import { EmptyState } from '@/components/EmptyState';
 
 const MIN_TABS = 2;
 const MAX_TABS = 5;
@@ -35,34 +37,34 @@ export function ResearchSetupView({ active, onStart }: Props) {
   /** 部分失败但可继续时暂存的成功来源 */
   const [partialSources, setPartialSources] = useState<ChatSourceRef[]>();
 
-  const loadTabs = async () => {
-    setError(undefined);
-    setFailures([]);
-    setPartialSources(undefined);
-    const all = await browser.tabs.query({ currentWindow: true });
-    const items: TabItem[] = [];
-    let activeTabId: number | undefined;
-    for (const tab of all) {
-      if (!tab.id || !tab.url) continue;
-      if (!/^https?:/.test(tab.url) || isUnsupportedUrl(tab.url)) continue;
-      let domain: string;
-      try {
-        domain = new URL(tab.url).hostname;
-      } catch {
-        continue;
+  const loadTabs = () =>
+    browser.tabs.query({ currentWindow: true }).then((all) => {
+      setError(undefined);
+      setFailures([]);
+      setPartialSources(undefined);
+      const items: TabItem[] = [];
+      let activeTabId: number | undefined;
+      for (const tab of all) {
+        if (!tab.id || !tab.url) continue;
+        if (!/^https?:/.test(tab.url) || isUnsupportedUrl(tab.url)) continue;
+        let domain: string;
+        try {
+          domain = new URL(tab.url).hostname;
+        } catch {
+          continue;
+        }
+        if (tab.active) activeTabId = tab.id;
+        items.push({
+          tabId: tab.id,
+          title: tab.title ?? tab.url,
+          url: tab.url,
+          favicon: tab.favIconUrl,
+          domain,
+        });
       }
-      if (tab.active) activeTabId = tab.id;
-      items.push({
-        tabId: tab.id,
-        title: tab.title ?? tab.url,
-        url: tab.url,
-        favicon: tab.favIconUrl,
-        domain,
-      });
-    }
-    setTabs(items);
-    setSelected(new Set(activeTabId !== undefined ? [activeTabId] : []));
-  };
+      setTabs(items);
+      setSelected(new Set(activeTabId !== undefined ? [activeTabId] : []));
+    });
 
   useEffect(() => {
     if (active) void loadTabs();
@@ -179,7 +181,11 @@ export function ResearchSetupView({ active, onStart }: Props) {
       )}
 
       {tabs.length === 0 ? (
-        <Empty description="当前窗口没有可读取的普通网页" />
+        <EmptyState
+          icon={<FileSearchOutlined />}
+          title="当前窗口没有可读取的普通网页"
+          description="打开几个网页标签页再来探究吧"
+        />
       ) : (
         <div className="research-tab-list">
           {tabs.map((tab) => (
