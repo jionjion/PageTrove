@@ -3,7 +3,6 @@ import {
   Alert,
   Button,
   Card,
-  Empty,
   Input,
   Popconfirm,
   Select,
@@ -17,6 +16,7 @@ import {
   DownloadOutlined,
   ExperimentOutlined,
   ExportOutlined,
+  InboxOutlined,
   MessageOutlined,
   SaveOutlined,
 } from '@ant-design/icons';
@@ -40,6 +40,7 @@ import {
   downloadClipsArchive,
 } from '@/services/obsidian-export';
 import { toErrorMessage } from '@/utils/errors';
+import { EmptyState } from '@/components/EmptyState';
 
 const MIN_RESEARCH = 2;
 const MAX_RESEARCH = 5;
@@ -338,7 +339,11 @@ export function ClipListView({ active, onChat, onResearch }: Props) {
       )}
 
       {entries.length === 0 ? (
-        <Empty description="还没有收藏，点上方 ☆ 收藏当前网页吧" />
+        <EmptyState
+          icon={<InboxOutlined />}
+          title="还没有收藏"
+          description="点上方 ☆ 收藏当前网页吧"
+        />
       ) : (
         entries.map((entry) => (
           <Card

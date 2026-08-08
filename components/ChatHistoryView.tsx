@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Empty, Input, Popconfirm, Space, Tooltip, Typography } from 'antd';
-import { DeleteOutlined, LinkOutlined } from '@ant-design/icons';
+import { Button, Card, Input, Popconfirm, Space, Tooltip, Typography } from 'antd';
+import { DeleteOutlined, HistoryOutlined, LinkOutlined } from '@ant-design/icons';
 import { browser } from 'wxt/browser';
 import type { ChatIndexEntry } from '@/types/chat';
 import { getChatIndex, removeChat } from '@/services/chat-store';
 import { onDataChanged } from '@/services/data-events';
+import { EmptyState } from '@/components/EmptyState';
 
 interface Props {
   /** 视图是否可见；变为可见时刷新列表 */
@@ -52,8 +53,10 @@ export function ChatHistoryView({ active, onOpen }: Props) {
       />
 
       {filtered.length === 0 ? (
-        <Empty
-          description={kw ? '没有匹配的对话' : '还没有对话记录，点上方 + 发起新对话'}
+        <EmptyState
+          icon={<HistoryOutlined />}
+          title={kw ? '没有匹配的对话' : '还没有对话记录'}
+          description={kw ? '换个关键词试试' : '点上方 + 发起新对话'}
         />
       ) : (
         filtered.map((s) => (
