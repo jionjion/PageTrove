@@ -4,11 +4,11 @@ import { normalizeUrl } from '@/services/url-utils';
 import { mapDatabaseError, openPageTroveDatabase } from '@/services/database';
 import { emitDataChanged } from '@/services/data-events';
 
-const EXPORT_VERSION = 1;
-const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
-const MAX_IMPORT_CLIPS = 5_000;
+export const EXPORT_VERSION = 1;
+export const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+export const MAX_IMPORT_CLIPS = 5_000;
 
-const IMPORT_LIMITS = {
+export const IMPORT_LIMITS = {
   id: 128,
   url: 8_192,
   title: 500,
@@ -22,7 +22,7 @@ const IMPORT_LIMITS = {
   faviconUrl: 100_000,
 } as const;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
@@ -203,13 +203,13 @@ export async function exportAll(): Promise<string> {
   );
 }
 
-function readOptionalString(value: unknown, maxLength: number): string | undefined {
+export function readOptionalString(value: unknown, maxLength: number): string | undefined {
   if (typeof value !== 'string') return undefined;
   const text = value.trim();
   return text ? text.slice(0, maxLength) : undefined;
 }
 
-function readHttpUrl(value: unknown): URL | undefined {
+export function readHttpUrl(value: unknown): URL | undefined {
   const text = readOptionalString(value, IMPORT_LIMITS.url);
   if (!text) return undefined;
   try {
@@ -231,7 +231,7 @@ function readFaviconUrl(value: unknown): string | undefined {
   }
 }
 
-function readTags(value: unknown): string[] {
+export function readTags(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const tags = value
     .filter((tag): tag is string => typeof tag === 'string')
@@ -240,7 +240,7 @@ function readTags(value: unknown): string[] {
   return [...new Set(tags)].slice(0, IMPORT_LIMITS.tagCount);
 }
 
-function readIsoDate(value: unknown, fallback: string): string {
+export function readIsoDate(value: unknown, fallback: string): string {
   const text = readOptionalString(value, 64);
   if (!text) return fallback;
   const time = Date.parse(text);
@@ -266,7 +266,7 @@ function nextImportId(value: unknown, usedIds: Set<string>): string {
   return id;
 }
 
-function normalizeImportedClip(
+export function normalizeImportedClip(
   raw: unknown,
   usedIds: Set<string>,
 ): WebClip | undefined {

@@ -1,10 +1,11 @@
 import {useEffect, useRef, useState} from 'react';
-import {App as AntApp, AutoComplete, Button, Checkbox, Input, Menu, Select, Space, Switch, Typography,} from 'antd';
-import {ApiOutlined, DatabaseOutlined, DownloadOutlined, RobotOutlined, UploadOutlined, UserOutlined,} from '@ant-design/icons';
+import {App as AntApp, AutoComplete, Button, Checkbox, Input, Menu, Modal, Select, Space, Switch, Typography,} from 'antd';
+import {ApiOutlined, CloudDownloadOutlined, CloudUploadOutlined, DatabaseOutlined, DownloadOutlined, RobotOutlined, UserOutlined,} from '@ant-design/icons';
 import {DEFAULT_SETTINGS, type ExtensionSettings, getModelCapabilities, modelCapabilityKey, PROVIDERS,} from '@/types/settings';
 import {getSettings, saveSettings} from '@/services/settings-store';
-import {exportAll, getClipsByIds, importAll, queryClips} from '@/services/clip-store';
+import {getClipsByIds, queryClips} from '@/services/clip-store';
 import {downloadClipsArchive} from '@/services/obsidian-export';
+import {exportBackup, importBackup, previewBackup, type BackupPreview, type ImportStrategy} from '@/services/backup';
 import {toErrorMessage} from '@/utils/errors';
 import {McpSettings} from '@/components/McpSettings';
 import {DataStatsPanel} from '@/components/DataStatsPanel';
@@ -12,8 +13,8 @@ import {validateMcpServer} from '@/services/mcp-client';
 
 import iconUrl from '/icon/48.png';
 
-const Label = ({ children }: { children: string }) => (
-  <Typography.Text strong className="options-section-label">
+const Label = ({ children, style }: { children: string; style?: React.CSSProperties }) => (
+  <Typography.Text strong className="options-section-label" style={style}>
     {children}
   </Typography.Text>
 );
@@ -28,7 +29,6 @@ export default function App() {
   const { message } = AntApp.useApp();
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
   const [section, setSection] = useState('profile');
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void getSettings().then(setSettings);
@@ -75,36 +75,11 @@ export default function App() {
     }
   };
 
-  const handleExport = async () => {
-    try {
-      const json = await exportAll();
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const now = new Date();
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-      a.download = `pagetrove-export-${stamp}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      message.error(toErrorMessage(e));
-    }
-  };
-
-  const handleImport = async (file: File) => {
-    try {
-      const result = await importAll(await file.text());
-      message.success(
-        `成功导入 ${result.imported} 条，跳过重复 ${result.duplicates} 条，无效数据 ${result.invalid} 条`,
-      );
-    } catch (e) {
-      message.error(toErrorMessage(e));
-    }
-  };
-
   const [obsidianIncludeContent, setObsidianIncludeContent] = useState(true);
+  const backupInputRef = useRef<HTMLInputElement>(null);
+  const [backupPreview, setBackupPreview] = useState<BackupPreview | null>(null);
+  const [backupFile, setBackupFile] = useState<ArrayBuffer | null>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
 
   const handleObsidianExport = async () => {
     try {
@@ -117,6 +92,52 @@ export default function App() {
       downloadClipsArchive(clips, { includeContent: obsidianIncludeContent });
     } catch (e) {
       message.error(toErrorMessage(e) || '生成 Obsidian 文件失败');
+    }
+  };
+
+  const handleBackupExport = async () => {
+    try {
+      await exportBackup();
+      message.success('备份文件已下载');
+    } catch (e) {
+      message.error(toErrorMessage(e));
+    }
+  };
+
+  const handleBackupFileSelect = async (file: File) => {
+    try {
+      setBackupLoading(true);
+      const buffer = await file.arrayBuffer();
+      const preview = await previewBackup(buffer);
+      setBackupFile(buffer);
+      setBackupPreview(preview);
+    } catch (e) {
+      message.error(toErrorMessage(e));
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleBackupImport = async (strategy: ImportStrategy) => {
+    if (!backupFile) return;
+    try {
+      setBackupLoading(true);
+      const result = await importBackup(backupFile, strategy);
+      const parts: string[] = [];
+      if (result.clips.imported > 0) parts.push(`收藏 ${result.clips.imported} 条`);
+      if (result.chats.imported > 0) parts.push(`会话 ${result.chats.imported} 条`);
+      if (result.settingsRestored) parts.push('设置已恢复');
+      if (parts.length > 0) {
+        message.success(`恢复成功：${parts.join('，')}`);
+      } else {
+        message.info('没有需要恢复的新数据');
+      }
+    } catch (e) {
+      message.error(toErrorMessage(e));
+    } finally {
+      setBackupLoading(false);
+      setBackupPreview(null);
+      setBackupFile(null);
     }
   };
 
@@ -266,52 +287,100 @@ export default function App() {
       <Typography.Title level={5} className="options-section-title">
         数据管理
       </Typography.Title>
-      <Hint>
-        所有收藏数据只保存在本机浏览器中，建议定期导出备份。
-      </Hint>
-      <Space style={{ marginTop: 8 }}>
-        <Button icon={<DownloadOutlined />} onClick={() => void handleExport()}>
-          导出收藏 JSON
+      <Label>备份与恢复</Label>
+      <Space style={{ marginTop: 4 }}>
+        <Button
+          icon={<CloudDownloadOutlined />}
+          onClick={() => void handleBackupExport()}
+        >
+          导出备份
         </Button>
         <Button
-          icon={<UploadOutlined />}
-          onClick={() => fileInputRef.current?.click()}
+          icon={<CloudUploadOutlined />}
+          loading={backupLoading}
+          onClick={() => backupInputRef.current?.click()}
         >
-          导入收藏 JSON
+          从备份恢复
         </Button>
       </Space>
-      <div style={{ marginTop: 16 }}>
-        <Label>Obsidian 导出</Label>
-        <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-          <Checkbox
-            checked={obsidianIncludeContent}
-            onChange={(e) => setObsidianIncludeContent(e.target.checked)}
-          >
-            包含采集正文
-          </Checkbox>
+      <input
+        ref={backupInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleBackupFileSelect(file);
+          e.target.value = '';
+        }}
+      />
+      <Hint>
+        所有数据只保存在本机浏览器中，建议定期备份。<br/>
+        备份包含全部收藏、聊天记录和设置（不含 API Key）。
+      </Hint>
+
+
+      <Label style={{ marginTop: 20 }}>导出为 Obsidian</Label>
+      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
+        <Checkbox
+          checked={obsidianIncludeContent}
+          onChange={(e) => setObsidianIncludeContent(e.target.checked)}
+        >
+          包含采集正文
+        </Checkbox>
+        <div>
           <Button
             icon={<DownloadOutlined />}
             onClick={() => void handleObsidianExport()}
           >
-            导出全部为 Obsidian ZIP
+            导出为 Obsidian ZIP
           </Button>
-        </Space>
-        <Hint>
-          生成 Obsidian 兼容的 Markdown 文件（含索引），完全在本机生成。<br/>
-          导出文件可能包含你保存的网页内容和备注；不包含 API Key、MCP 配置和聊天历史。
-        </Hint>
-      </div>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="application/json"
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleImport(file);
-          e.target.value = '';
-        }}
-      />
+        </div>
+      </Space>
+      <Hint>
+        生成 Obsidian 兼容的 Markdown 文件（含索引），完全在本机生成。
+      </Hint>
+
+      <Modal
+        title="确认恢复备份"
+        open={backupPreview !== null}
+        onCancel={() => { setBackupPreview(null); setBackupFile(null); }}
+        footer={[
+          <Button key="cancel" onClick={() => { setBackupPreview(null); setBackupFile(null); }}>
+            取消
+          </Button>,
+          <Button
+            key="merge"
+            type="primary"
+            loading={backupLoading}
+            onClick={() => void handleBackupImport('merge')}
+          >
+            合并导入
+          </Button>,
+          <Button
+            key="overwrite"
+            danger
+            loading={backupLoading}
+            onClick={() => void handleBackupImport('overwrite')}
+          >
+            覆盖恢复
+          </Button>,
+        ]}
+      >
+        {backupPreview && (
+          <Space direction="vertical" size={4}>
+            <Typography.Text>
+              备份时间：{new Date(backupPreview.manifest.exportedAt).toLocaleString()}
+            </Typography.Text>
+            <Typography.Text>收藏：{backupPreview.clipCount} 条（冲突 {backupPreview.clipConflicts} 条）</Typography.Text>
+            <Typography.Text>会话：{backupPreview.chatCount} 条（冲突 {backupPreview.chatConflicts} 条）</Typography.Text>
+            {backupPreview.hasSettings && <Typography.Text>包含设置配置</Typography.Text>}
+            <Typography.Text type="secondary" style={{ marginTop: 8 }}>
+              合并：保留现有数据，仅添加新内容；覆盖：清空现有数据后写入备份。
+            </Typography.Text>
+          </Space>
+        )}
+      </Modal>
     </>
   );
 

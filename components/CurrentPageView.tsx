@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import {browser} from 'wxt/browser';
 import {Alert, Button, Card, Checkbox, Input, Space, Tooltip, Typography} from 'antd';
-import {SettingOutlined,} from '@ant-design/icons';
+import {SettingOutlined, StopOutlined} from '@ant-design/icons';
 import type {AnalyzeResult} from '@/types/ai';
 import type {ClipIndexEntry, WebClip} from '@/types/clip';
 import type {PageSnapshot} from '@/types/page-snapshot';
@@ -13,6 +13,7 @@ import {createClip, findByNormalizedUrl, updateClip,} from '@/services/clip-stor
 import {normalizeUrl} from '@/services/url-utils';
 import {AppError, toErrorMessage} from '@/utils/errors';
 import {AnalyzeResultEditor} from '@/components/AnalyzeResultEditor';
+import {EmptyState} from '@/components/EmptyState';
 
 export function CurrentPageView() {
     const tab = useCurrentTab();
@@ -150,10 +151,11 @@ export function CurrentPageView() {
 
     if (tab.unsupported) {
         return (
-            <div className="empty-hint">
-                <div>这是浏览器内部页面，无法收藏</div>
-                <div>切换到普通网页再来吧</div>
-            </div>
+            <EmptyState
+                icon={<StopOutlined />}
+                title="浏览器内部页面，无法收藏"
+                description="切换到普通网页再来吧"
+            />
         );
     }
 
