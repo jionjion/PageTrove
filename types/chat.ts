@@ -1,4 +1,6 @@
 export interface ChatMessage {
+  /** 新消息的稳定标识；旧数据可能没有。 */
+  id?: string;
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
@@ -33,7 +35,18 @@ export interface ChatToolCall {
   id: string;
   serverName: string;
   toolName: string;
-  status: 'success' | 'error';
+  /**
+   * unknown 表示已获授权并开始调用，但因取消、超时或断线无法确认外部副作用是否完成。
+   */
+  status: 'success' | 'error' | 'denied' | 'unknown';
+  /** claimed 表示调用前租约；in-doubt 表示已发起但结果无法确认。 */
+  phase?: 'claimed' | 'in-doubt';
+  /** claimed 租约的起始时间；终态保留该值供审计。 */
+  claimedAt?: string;
+  /** 仅保存按 user turn 隔离的单向操作指纹，不保存原始参数。 */
+  operationKey?: string;
+  /** 对应的稳定 user message id，用于重试去重。 */
+  turnId?: string;
   summary?: string;
 }
 
@@ -74,6 +87,11 @@ export interface ChatScope {
 
 export interface ChatSession {
   id: string;
+  /**
+   * 每次成功写入都会更换的乐观并发令牌。
+   * 旧数据可能没有该字段；首次更新后会自动补齐。
+   */
+  revision?: string;
   /** 关联的收藏；与 page、scope 三选一 */
   clipId?: string;
   /** 当前网页对话的页面快照；与 clipId、scope 三选一 */
@@ -82,6 +100,11 @@ export interface ChatSession {
   scope?: ChatScope;
   title: string;
   messages: ChatMessage[];
+  /**
+   * 独立于最终 assistant 消息的 MCP 执行审计日志。
+   * 工具一旦开始即写入 unknown，即使后续模型轮次失败也不会丢失。
+   */
+  toolExecutions?: ChatToolCall[];
   createdAt: string;
   updatedAt: string;
 }

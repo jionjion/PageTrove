@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
+    "@cfworker/json-schema": "^4.1.1",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@mozilla/readability": "^0.6.0",
     "@types/mdast": "^4.0.4",

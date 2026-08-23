@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  limitMcpResponseBody,
   modelToolName,
   normalizeTool,
   parseMcpHeaders,
@@ -60,24 +61,20 @@ describe('validateMcpServer', () => {
   });
 
   it('名称为空抛错', () => {
-    expect(() => validateMcpServer(makeServer({ name: '  ' }))).toThrow(
-      '名称不能为空',
-    );
+    expect(() => validateMcpServer(makeServer({ name: '  ' }))).toThrow('名称不能为空');
   });
 
   it('URL 无效或协议不支持抛错', () => {
-    expect(() => validateMcpServer(makeServer({ url: 'not-a-url' }))).toThrow(
-      'URL 无效',
+    expect(() => validateMcpServer(makeServer({ url: 'not-a-url' }))).toThrow('URL 无效');
+    expect(() => validateMcpServer(makeServer({ url: 'ftp://mcp.example.com' }))).toThrow(
+      'HTTP 或 HTTPS',
     );
-    expect(() =>
-      validateMcpServer(makeServer({ url: 'ftp://mcp.example.com' })),
-    ).toThrow('HTTP 或 HTTPS');
   });
 
   it('headersJson 非法时联动抛错', () => {
-    expect(() =>
-      validateMcpServer(makeServer({ headersJson: '{bad' })),
-    ).toThrow('有效的 JSON');
+    expect(() => validateMcpServer(makeServer({ headersJson: '{bad' }))).toThrow(
+      '有效的 JSON',
+    );
   });
 });
 
@@ -102,15 +99,14 @@ describe('normalizeTool', () => {
     expect(normalizeTool({ name: '   ' })).toBeUndefined();
   });
 
-  it('非法 inputSchema 回退为空对象 Schema', () => {
-    expect(normalizeTool({ name: 't', inputSchema: [1] })?.inputSchema).toEqual({
-      type: 'object',
-      properties: {},
-    });
-    expect(normalizeTool({ name: 't' })?.inputSchema).toEqual({
-      type: 'object',
-      properties: {},
-    });
+  it('非法或缺失 inputSchema 时不向模型暴露工具', () => {
+    expect(normalizeTool({ name: 't', inputSchema: [1] })).toBeUndefined();
+    expect(normalizeTool({ name: 't' })).toBeUndefined();
+  });
+
+  it('布尔根 schema（true/false）予以保留', () => {
+    expect(normalizeTool({ name: 't', inputSchema: true })?.inputSchema).toBe(true);
+    expect(normalizeTool({ name: 't', inputSchema: false })?.inputSchema).toBe(false);
   });
 
   it('inputSchema 序列化超过 50KB 拒绝', () => {
@@ -125,9 +121,31 @@ describe('normalizeTool', () => {
     const tool = normalizeTool({
       name: 'n'.repeat(300),
       description: 'd'.repeat(2_000),
+      inputSchema: { type: 'object', properties: {} },
     });
     expect(tool?.name).toHaveLength(200);
     expect(tool?.description).toHaveLength(1_000);
+  });
+
+  it('只保留合法 annotations 字段', () => {
+    const tool = normalizeTool({
+      name: 'safe-tool',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: {
+        title: '  只读查询  ',
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: 'yes',
+        openWorldHint: false,
+        extra: 'ignored',
+      },
+    });
+    expect(tool?.annotations).toEqual({
+      title: '只读查询',
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    });
   });
 });
 
@@ -170,10 +188,103 @@ describe('resultToText', () => {
     expect(resultToText({ foo: 'bar' })).toBe('{"foo":"bar"}');
   });
 
-  it('结果超过 100KB 截断', () => {
+  it('单个文本块先按 50K 预算截断', () => {
     const text = resultToText({
       content: [{ type: 'text', text: 'x'.repeat(200_000) }],
     });
-    expect(text).toHaveLength(100_000);
+    expect(text).toHaveLength(50_000);
+    expect(text).toContain('内容已截断');
+  });
+
+  it('structuredContent 按深度、节点和字符串预算序列化', () => {
+    const circular: Record<string, unknown> = {
+      pad: 'x'.repeat(100_000),
+    };
+    circular.self = circular;
+
+    const text = resultToText({
+      structuredContent: circular,
+      content: [{ type: 'text', text: '后续文本' }],
+    });
+
+    expect(text.length).toBeLessThanOrEqual(100_000);
+    expect(text).toContain('内容已截断');
+    expect(text).toContain('后续文本');
+  });
+
+  it('只读取前 100 个内容块并报告省略数', () => {
+    const text = resultToText({
+      content: Array.from({ length: 105 }, (_, index) => ({
+        type: 'text',
+        text: `block-${index}`,
+      })),
+    });
+
+    expect(text).toContain('block-99');
+    expect(text).not.toContain('block-100');
+    expect(text).toContain('其余 5 个内容块已省略');
+  });
+
+  it('不执行 structuredContent 中的访问器', () => {
+    const getter = () => {
+      throw new Error('不应访问');
+    };
+    const structuredContent = {} as Record<string, unknown>;
+    Object.defineProperty(structuredContent, 'secret', {
+      enumerable: true,
+      get: getter,
+    });
+
+    expect(() => resultToText({ structuredContent })).not.toThrow();
+    expect(resultToText({ structuredContent })).toContain('访问器已省略');
+  });
+});
+
+describe('limitMcpResponseBody', () => {
+  it('Content-Length 已知超限时在读取前 fail closed', () => {
+    const response = new Response('small', {
+      headers: { 'content-length': '11' },
+    });
+
+    expect(() => limitMcpResponseBody(response, 10)).toThrow('超过 10 字节限制');
+  });
+
+  it('无 Content-Length 时按实际流式字节数拒绝并取消源流', async () => {
+    let cancelled = false;
+    const encoder = new TextEncoder();
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('1234'));
+          controller.enqueue(encoder.encode('5678'));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+    );
+
+    const limited = limitMcpResponseBody(response, 7);
+    await expect(limited.text()).rejects.toThrow('超过 7 字节限制');
+    expect(cancelled).toBe(true);
+  });
+
+  it('限额内保留状态、响应头和正文', async () => {
+    const response = new Response('hello', {
+      status: 201,
+      statusText: 'Created',
+      headers: { 'x-mcp-test': 'yes' },
+    });
+
+    const limited = limitMcpResponseBody(response, 5);
+    expect(limited.status).toBe(201);
+    expect(limited.statusText).toBe('Created');
+    expect(limited.headers.get('x-mcp-test')).toBe('yes');
+    await expect(limited.text()).resolves.toBe('hello');
+  });
+
+  it('拒绝非正整数限额', () => {
+    expect(() => limitMcpResponseBody(new Response(''), 0)).toThrow('正整数');
+    expect(() => limitMcpResponseBody(new Response(''), 1.5)).toThrow('正整数');
   });
 });

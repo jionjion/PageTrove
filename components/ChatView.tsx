@@ -70,10 +70,15 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
       (message) => message.toolCalls?.map((call) => call.id) ?? [],
     ),
   );
-  const orphanToolExecutions = (session?.toolExecutions ?? []).filter(
-    (execution) => !messageToolExecutionIds.has(execution.id),
-  );
   const lastMessage = session?.messages.at(-1);
+  // 进行中的轮次，assistant 消息尚未落盘，其工具执行尚未被任何 message.toolCalls 认领；
+  // 此时它们不应被误判为上一轮遗留的 orphan，否则会在每次调用工具时弹出错误告警。
+  const inProgressTurnId =
+    busy && lastMessage?.role === 'user' ? lastMessage.id : undefined;
+  const orphanToolExecutions = (session?.toolExecutions ?? []).filter(
+    (execution) =>
+      !messageToolExecutionIds.has(execution.id) && execution.turnId !== inProgressTurnId,
+  );
   const retryableTurnId =
     lastMessage?.role === 'user' &&
     lastMessage.id &&

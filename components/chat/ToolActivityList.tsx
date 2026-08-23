@@ -18,7 +18,10 @@ export function ToolActivityList({
 }) {
   const [expanded, setExpanded] = useState(false);
   if (calls.length === 0) return null;
-  const running = calls.find((call) => call.status === 'running');
+  const active = calls.find(
+    (call) => call.status === 'running' || call.status === 'awaiting-approval',
+  );
+  const unknownCount = calls.filter((call) => call.status === 'unknown').length;
   const canExpand = verbose;
   return (
     <div className="tool-activity-list">
@@ -28,22 +31,34 @@ export function ToolActivityList({
         onClick={() => canExpand && setExpanded((current) => !current)}
       >
         {canExpand ? (
-          expanded ? <CaretDownOutlined /> : <CaretRightOutlined />
+          expanded ? (
+            <CaretDownOutlined />
+          ) : (
+            <CaretRightOutlined />
+          )
         ) : (
           <span style={{ width: 14, display: 'inline-block' }} />
         )}
         <ToolOutlined />
-        {running ? (
+        {active ? (
           <>
             <span className="tool-activity-title">
               {verbose
-                ? `正在调用 ${running.serverName} · ${running.toolName}…`
-                : `正在调用工具（已执行 ${calls.filter((call) => call.status !== 'running').length} 个）…`}
+                ? active.status === 'awaiting-approval'
+                  ? `等待确认 ${active.serverName} · ${active.toolName}`
+                  : `正在调用 ${active.serverName} · ${active.toolName}…`
+                : active.status === 'awaiting-approval'
+                  ? '等待确认工具调用'
+                  : `正在调用工具（已完成 ${calls.filter((call) => ['success', 'error', 'denied'].includes(call.status)).length} 个）…`}
             </span>
-            <LoadingOutlined spin />
+            {active.status === 'running' && <LoadingOutlined spin />}
           </>
         ) : (
-          <span className="tool-activity-title">已调用 {calls.length} 个工具</span>
+          <span className="tool-activity-title">
+            {unknownCount > 0
+              ? `${unknownCount} 个工具的执行结果未知`
+              : `已调用 ${calls.length} 个工具`}
+          </span>
         )}
       </button>
       {verbose &&
@@ -56,9 +71,7 @@ export function ToolActivityList({
                 {call.serverName} · {call.toolName}
               </span>
             </div>
-            {call.summary && (
-              <pre className="tool-activity-summary">{call.summary}</pre>
-            )}
+            {call.summary && <pre className="tool-activity-summary">{call.summary}</pre>}
           </div>
         ))}
     </div>

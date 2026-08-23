@@ -938,21 +938,162 @@ body {
 }
 .tool-approval-card {
   margin-bottom: 8px;
-  border-color: #faad14;
+  padding: 8px 10px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #595959;
+}
+
+.tool-approval-card.is-high-risk {
+  border-color: #ffd591;
+  background: #fffbf6;
+}
+
+.tool-approval-card.is-low-risk {
+  border-color: #e6f4ff;
+  background: #fbfdff;
+}
+
+.tool-approval-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.tool-approval-title-icon {
+  color: #1677ff;
+  font-size: 12px;
+}
+
+.tool-approval-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.tool-approval-badge {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: #e6f4ff;
+  color: #1677ff;
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.tool-approval-badge.is-high-risk {
+  background: #fff1f0;
+  color: #cf1322;
+}
+
+.tool-approval-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 4px 6px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.tool-approval-banner .anticon {
+  margin-top: 2px;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.tool-approval-banner.is-high-risk {
+  background: #fff7e6;
+  border: 1px solid #ffe7ba;
+  color: #ad6800;
+}
+
+.tool-approval-banner.is-low-risk {
+  background: #f0f5ff;
+  border: 1px solid #d6e4ff;
+  color: #2f54eb;
+}
+
+.tool-approval-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+
+.tool-approval-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tool-approval-label {
+  flex-shrink: 0;
+  width: 34px;
+  color: #999;
+}
+
+.tool-approval-value {
+  min-width: 0;
+  color: #262626;
+  overflow-wrap: anywhere;
+}
+
+.tool-approval-hints {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px 4px;
+}
+
+.tool-approval-hint {
+  padding: 0 6px;
+  border-radius: 9px;
+  background: #f5f5f5;
+  color: #595959;
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.tool-approval-hint.is-no {
+  color: #999;
+}
+
+.tool-approval-args-heading {
+  margin-bottom: 3px;
+  color: #595959;
+  font-weight: 600;
 }
 
 .tool-approval-arguments {
-  max-height: 160px;
-  margin: 6px 0;
-  padding: 8px;
+  max-height: 120px;
+  margin: 0 0 6px;
+  padding: 6px 8px;
   overflow: auto;
+  border: 1px solid #f0f0f0;
   border-radius: 6px;
-  background: #f5f5f5;
+  background: #fafafa;
+  color: #595959;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .tool-approval-note {
-  margin: 4px 0 8px !important;
-  font-size: 12px;
+  margin: 0 0 8px;
+  color: #999;
+  font-size: 10px;
+}
+
+.tool-approval-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
