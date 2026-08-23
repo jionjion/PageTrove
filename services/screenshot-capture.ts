@@ -17,15 +17,106 @@ export interface CapturedImage {
   height: number;
 }
 
-async function getActiveTab(): Promise<Browser.tabs.Tab> {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id || !tab.url) {
+export interface CaptureTarget {
+  tabId: number;
+  windowId: number;
+  url: string;
+}
+
+interface RegionSelectionResult {
+  beforeUrl: string;
+  afterUrl: string;
+  region: ViewportRegion | null;
+}
+
+const PAGE_CHANGED_MESSAGE = '页面已发生变化，请重试';
+
+function pageChangedError(): AppError {
+  return new AppError('PAGE_EXTRACT_FAILED', PAGE_CHANGED_MESSAGE);
+}
+
+function toCaptureTarget(tab: Browser.tabs.Tab | undefined): CaptureTarget {
+  if (typeof tab?.id !== 'number' || typeof tab.windowId !== 'number' || !tab.url) {
     throw new AppError('PAGE_EXTRACT_FAILED', '无法获取当前网页');
   }
   if (isUnsupportedUrl(tab.url)) {
     throw new AppError('UNSUPPORTED_PAGE');
   }
-  return tab;
+  if (tab.pendingUrl) {
+    throw pageChangedError();
+  }
+  return { tabId: tab.id, windowId: tab.windowId, url: tab.url };
+}
+
+async function getActiveTarget(): Promise<CaptureTarget> {
+  let tab: Browser.tabs.Tab | undefined;
+  try {
+    [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  } catch {
+    throw new AppError('PAGE_EXTRACT_FAILED', '无法获取当前网页');
+  }
+  return toCaptureTarget(tab);
+}
+
+async function assertCaptureTarget(target: CaptureTarget): Promise<void> {
+  let tab: Browser.tabs.Tab;
+  let activeTab: Browser.tabs.Tab | undefined;
+  try {
+    tab = await browser.tabs.get(target.tabId);
+    [activeTab] = await browser.tabs.query({
+      active: true,
+      windowId: target.windowId,
+    });
+  } catch {
+    throw pageChangedError();
+  }
+
+  if (
+    tab.id !== target.tabId ||
+    tab.windowId !== target.windowId ||
+    tab.url !== target.url ||
+    tab.pendingUrl ||
+    !tab.active ||
+    activeTab?.id !== target.tabId ||
+    activeTab.url !== target.url ||
+    activeTab.pendingUrl ||
+    isUnsupportedUrl(target.url)
+  ) {
+    throw pageChangedError();
+  }
+}
+
+function readRegionSelectionResult(
+  value: unknown,
+  expectedUrl: string,
+): ViewportRegion | null {
+  if (typeof value !== 'object' || value === null) {
+    throw new AppError('PAGE_EXTRACT_FAILED');
+  }
+  const result = value as Partial<RegionSelectionResult>;
+  if (result.beforeUrl !== expectedUrl || result.afterUrl !== expectedUrl) {
+    throw pageChangedError();
+  }
+  if (result.region === null) return null;
+  const region = result.region;
+  if (
+    !region ||
+    ![
+      region.left,
+      region.top,
+      region.width,
+      region.height,
+      region.viewportWidth,
+      region.viewportHeight,
+    ].every(Number.isFinite) ||
+    region.width <= 0 ||
+    region.height <= 0 ||
+    region.viewportWidth <= 0 ||
+    region.viewportHeight <= 0
+  ) {
+    throw new AppError('PAGE_EXTRACT_FAILED');
+  }
+  return region;
 }
 
 function loadImage(dataUrl: string): Promise<HTMLImageElement> {
@@ -57,10 +148,7 @@ async function cropImage(
   );
 
   const maxDimension = 2_048;
-  const outputScale = Math.min(
-    1,
-    maxDimension / Math.max(sourceWidth, sourceHeight),
-  );
+  const outputScale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
   const width = Math.max(1, Math.round(sourceWidth * outputScale));
   const height = Math.max(1, Math.round(sourceHeight * outputScale));
 
@@ -89,48 +177,112 @@ async function cropImage(
 }
 
 async function captureTabRegion(
-  tab: Browser.tabs.Tab,
+  target: CaptureTarget,
   region: ViewportRegion,
+  signal?: AbortSignal,
 ): Promise<CapturedImage> {
-  const screenshot = await browser.tabs.captureVisibleTab(tab.windowId, {
-    format: 'png',
-  });
-  return cropImage(screenshot, region);
+  signal?.throwIfAborted();
+  await assertCaptureTarget(target);
+  signal?.throwIfAborted();
+  let screenshot: string;
+  try {
+    screenshot = await browser.tabs.captureVisibleTab(target.windowId, {
+      format: 'png',
+    });
+  } catch {
+    throw new AppError('PAGE_EXTRACT_FAILED', '截图失败，请重试');
+  }
+  signal?.throwIfAborted();
+  await assertCaptureTarget(target);
+  try {
+    const image = await cropImage(screenshot, region);
+    signal?.throwIfAborted();
+    await assertCaptureTarget(target);
+    return image;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError('PAGE_EXTRACT_FAILED', '截图失败，请重试');
+  }
 }
 
 export async function captureCurrentTabRegion(
   region: ViewportRegion,
+  target: CaptureTarget,
+  signal?: AbortSignal,
 ): Promise<CapturedImage> {
-  return captureTabRegion(await getActiveTab(), region);
+  return captureTabRegion(target, region, signal);
 }
 
 /** 让用户在当前页面拖拽选择可见区域，完成后返回裁剪后的临时截图。 */
-export async function captureSelectedRegion(): Promise<CapturedImage | null> {
-  const tab = await getActiveTab();
+export async function captureSelectedRegion(
+  signal?: AbortSignal,
+): Promise<CapturedImage | null> {
+  signal?.throwIfAborted();
+  const target = await getActiveTarget();
+  await assertCaptureTarget(target);
+  signal?.throwIfAborted();
+  const onAbort = () => {
+    void cancelRegionSelection(target.tabId);
+  };
+  signal?.addEventListener('abort', onAbort, { once: true });
   let results: { result?: unknown }[];
   try {
     results = await browser.scripting.executeScript({
-      target: { tabId: tab.id! },
+      target: { tabId: target.tabId },
       func: selectRegionOnPage,
+      args: [target.url],
     });
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new AppError(
-      'PAGE_EXTRACT_FAILED',
-      `无法开启截图框选，请刷新页面后重试（${detail}）`,
-    );
+  } catch {
+    if (signal?.aborted) throw signal.reason;
+    throw new AppError('PAGE_EXTRACT_FAILED', '无法开启截图框选，请刷新页面后重试');
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
   }
 
-  const region = results[0]?.result as ViewportRegion | null | undefined;
+  signal?.throwIfAborted();
+  await assertCaptureTarget(target);
+  const region = readRegionSelectionResult(results[0]?.result, target.url);
   if (!region) return null;
-  return captureTabRegion(tab, region);
+  signal?.throwIfAborted();
+  return captureTabRegion(target, region, signal);
 }
 
-function selectRegionOnPage(): Promise<ViewportRegion | null> {
+async function cancelRegionSelection(tabId: number): Promise<void> {
+  try {
+    await browser.scripting.executeScript({
+      target: { tabId },
+      func: cancelRegionSelectionOnPage,
+    });
+  } catch {
+    // 页面已关闭/导航时遮罩也已不再可见。
+  }
+}
+
+function cancelRegionSelectionOnPage(): void {
+  const pageWindow = window as unknown as { __pagetroveCancelCropping?: () => void };
+  pageWindow.__pagetroveCancelCropping?.();
+}
+
+function selectRegionOnPage(expectedUrl: string): Promise<RegionSelectionResult> {
+  const beforeUrl = location.href;
+  if (beforeUrl !== expectedUrl) {
+    return Promise.resolve({
+      beforeUrl,
+      afterUrl: location.href,
+      region: null,
+    });
+  }
+
   return new Promise((resolve) => {
-    const pageWindow = window as unknown as { __pagetroveCropping?: boolean };
+    const finish = (region: ViewportRegion | null) => {
+      resolve({ beforeUrl, afterUrl: location.href, region });
+    };
+    const pageWindow = window as unknown as {
+      __pagetroveCropping?: boolean;
+      __pagetroveCancelCropping?: () => void;
+    };
     if (pageWindow.__pagetroveCropping) {
-      resolve(null);
+      finish(null);
       return;
     }
     pageWindow.__pagetroveCropping = true;
@@ -182,6 +334,7 @@ function selectRegionOnPage(): Promise<ViewportRegion | null> {
       document.removeEventListener('keydown', onKey, true);
       layer.remove();
       pageWindow.__pagetroveCropping = false;
+      delete pageWindow.__pagetroveCancelCropping;
     };
 
     const render = (x: number, y: number) => {
@@ -234,9 +387,7 @@ function selectRegionOnPage(): Promise<ViewportRegion | null> {
         render(event.clientX, event.clientY);
         const result = currentRegion;
         cleanup();
-        resolve(
-          result && result.width >= 8 && result.height >= 8 ? result : null,
-        );
+        finish(result && result.width >= 8 && result.height >= 8 ? result : null);
       },
       true,
     );
@@ -246,7 +397,11 @@ function selectRegionOnPage(): Promise<ViewportRegion | null> {
       event.preventDefault();
       event.stopPropagation();
       cleanup();
-      resolve(null);
+      finish(null);
+    };
+    pageWindow.__pagetroveCancelCropping = () => {
+      cleanup();
+      finish(null);
     };
     document.addEventListener('keydown', onKey, true);
   });

@@ -464,7 +464,9 @@ body {
   border-radius: 10px;
   padding: 6px 8px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 /* 聚焦效果放在整个卡片上 */
@@ -511,7 +513,6 @@ body {
   gap: 8px;
   margin-bottom: 8px;
 }
-
 
 .mcp-test-row {
   display: flex;
@@ -934,4 +935,24 @@ body {
   border-top: 22px solid #1677ff;
   border-right: 22px solid transparent;
   pointer-events: none;
+}
+.tool-approval-card {
+  margin-bottom: 8px;
+  border-color: #faad14;
+}
+
+.tool-approval-arguments {
+  max-height: 160px;
+  margin: 6px 0;
+  padding: 8px;
+  overflow: auto;
+  border-radius: 6px;
+  background: #f5f5f5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tool-approval-note {
+  margin: 4px 0 8px !important;
+  font-size: 12px;
 }
