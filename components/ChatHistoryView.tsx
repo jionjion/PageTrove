@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Input, Popconfirm, Space, Tooltip, Typography } from 'antd';
+import { Alert, Button, Card, Input, Popconfirm, Space, Tooltip, Typography } from 'antd';
 import { DeleteOutlined, HistoryOutlined, LinkOutlined } from '@ant-design/icons';
 import { browser } from 'wxt/browser';
 import type { ChatIndexEntry } from '@/types/chat';
 import { getChatIndex, removeChat } from '@/services/chat-store';
 import { onDataChanged } from '@/services/data-events';
 import { EmptyState } from '@/components/EmptyState';
+import { toErrorMessage } from '@/utils/errors';
 
 interface Props {
   /** 视图是否可见；变为可见时刷新列表 */
@@ -17,6 +18,7 @@ interface Props {
 export function ChatHistoryView({ active, onOpen }: Props) {
   const [sessions, setSessions] = useState<ChatIndexEntry[]>([]);
   const [keyword, setKeyword] = useState('');
+  const [error, setError] = useState<string>();
 
   const refresh = useCallback(() => getChatIndex().then(setSessions), []);
 
@@ -32,8 +34,13 @@ export function ChatHistoryView({ active, onOpen }: Props) {
   }, [active, refresh]);
 
   const handleDelete = async (id: string) => {
-    await removeChat(id);
-    await refresh();
+    setError(undefined);
+    try {
+      await removeChat(id);
+      await refresh();
+    } catch (caught) {
+      setError(toErrorMessage(caught));
+    }
   };
 
   const kw = keyword.trim().toLowerCase();
@@ -49,6 +56,15 @@ export function ChatHistoryView({ active, onOpen }: Props) {
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
       />
+
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          title={error}
+          closable={{ onClose: () => setError(undefined) }}
+        />
+      )}
 
       {filtered.length === 0 ? (
         <EmptyState

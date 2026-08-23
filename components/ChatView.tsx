@@ -1,10 +1,12 @@
-import { Alert } from 'antd';
+import { Alert, Button } from 'antd';
 import { ChatSourceList } from '@/components/ChatSourceList';
 import { PendingContextTray } from '@/components/PendingContextTray';
 import { ChatComposer } from '@/components/chat/ChatComposer';
 import { ChatEmptyState } from '@/components/chat/ChatEmptyState';
 import { ChatMessageItem } from '@/components/chat/ChatMessageItem';
 import { StreamingBubble } from '@/components/chat/StreamingBubble';
+import { ToolActivityList } from '@/components/chat/ToolActivityList';
+import { ToolApprovalCard } from '@/components/chat/ToolApprovalCard';
 import { useChatController } from '@/hooks/useChatController';
 
 import type { ChatCommand } from '@/hooks/useChatController';
@@ -35,6 +37,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     streaming,
     streamingRefs,
     toolActivities,
+    pendingApproval,
     chatSettings,
     modelOptions,
     capabilities,
@@ -53,24 +56,37 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     handleSend,
     handleStop,
     handleRegenerate,
+    handleRetryInterruptedTurn,
     handlePick,
     handleCapture,
     handleCopy,
     handleRate,
     handleModelChange,
+    settleToolApproval,
   } = useChatController({ command, nonce, onTitleChange });
   const verbose = chatSettings?.mcpVerboseLog ?? true;
+  const messageToolExecutionIds = new Set(
+    (session?.messages ?? []).flatMap(
+      (message) => message.toolCalls?.map((call) => call.id) ?? [],
+    ),
+  );
+  const orphanToolExecutions = (session?.toolExecutions ?? []).filter(
+    (execution) => !messageToolExecutionIds.has(execution.id),
+  );
+  const lastMessage = session?.messages.at(-1);
+  const retryableTurnId =
+    lastMessage?.role === 'user' &&
+    lastMessage.id &&
+    orphanToolExecutions.some((execution) => execution.turnId === lastMessage.id)
+      ? lastMessage.id
+      : undefined;
 
   return (
     <div className="chat-session">
-      <div
-        ref={messagesRef}
-        className="chat-messages"
-        onScroll={handleMessagesScroll}
-      >
+      <div ref={messagesRef} className="chat-messages" onScroll={handleMessagesScroll}>
         {(session?.messages ?? []).map((message, index) => (
           <ChatMessageItem
-            key={index}
+            key={message.id ?? index}
             message={message}
             index={index}
             verbose={verbose}
@@ -78,13 +94,32 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
             copied={copiedIndex === index}
             rating={ratings[index]}
             busy={busy}
-            onCopy={(content, messageIndex) =>
-              void handleCopy(content, messageIndex)
-            }
+            onCopy={(content, messageIndex) => void handleCopy(content, messageIndex)}
             onRate={handleRate}
             onRegenerate={(messageIndex) => void handleRegenerate(messageIndex)}
           />
         ))}
+        {orphanToolExecutions.length > 0 && (
+          <div className="tool-execution-journal">
+            <Alert
+              type="warning"
+              showIcon
+              title="上一轮工具执行未生成最终回答；重试前请先检查外部系统"
+              action={
+                retryableTurnId ? (
+                  <Button
+                    size="small"
+                    disabled={busy}
+                    onClick={() => void handleRetryInterruptedTurn(retryableTurnId)}
+                  >
+                    继续生成
+                  </Button>
+                ) : undefined
+              }
+            />
+            <ToolActivityList calls={orphanToolExecutions} verbose={verbose} />
+          </div>
+        )}
         <StreamingBubble
           streaming={streaming}
           refs={streamingRefs}
@@ -127,6 +162,19 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
       ) : null}
 
       {activeScope && <ChatSourceList scope={activeScope} />}
+
+      {pendingApproval && (
+        <ToolApprovalCard
+          key={pendingApproval.requestId}
+          request={pendingApproval}
+          onDeny={() => settleToolApproval(pendingApproval.requestId, { kind: 'deny' })}
+          onApprove={() =>
+            settleToolApproval(pendingApproval.requestId, {
+              kind: 'approve-once',
+            })
+          }
+        />
+      )}
 
       <ChatComposer
         input={input}

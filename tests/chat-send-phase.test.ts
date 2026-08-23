@@ -1,108 +1,159 @@
 import { describe, expect, it } from 'vitest';
-import {
-  IDLE_PHASE,
-  type SendPhase,
-  sendPhaseReducer,
-} from '@/services/chat-send-phase';
+import { IDLE_PHASE, type SendPhase, sendPhaseReducer } from '@/services/chat-send-phase';
 import type { ChatToolActivity } from '@/services/ai/provider';
+import type { ToolApprovalRequest } from '@/types/mcp-tool';
+
+const RUN_A = 'run-a';
+const RUN_B = 'run-b';
 
 const activity = (id: string, status: ChatToolActivity['status']) =>
   ({ id, serverName: 'srv', toolName: 'tool', status }) as ChatToolActivity;
 
+const approval = (requestId: string): ToolApprovalRequest => ({
+  requestId,
+  toolCallId: 'call-1',
+  serverId: 'server-1',
+  serverName: 'server',
+  toolName: 'write',
+  argumentsPreview: '{}',
+  risk: { level: 'high', reasons: ['未知风险'], requiresApproval: true },
+});
+
 describe('sendPhaseReducer', () => {
-  it('start:进入 preparing 并清空工具活动', () => {
-    expect(sendPhaseReducer(IDLE_PHASE, { type: 'start' })).toEqual({
+  it('start：进入带 runId 的 preparing 并清空工具活动', () => {
+    expect(sendPhaseReducer(IDLE_PHASE, { type: 'start', runId: RUN_A })).toEqual({
       status: 'preparing',
+      runId: RUN_A,
       toolActivities: [],
     });
   });
 
-  it('stream-start:携带 refs 进入 streaming,text 为空串', () => {
-    const preparing = sendPhaseReducer(IDLE_PHASE, { type: 'start' });
+  it('stream-start：携带 refs 进入 streaming', () => {
+    const preparing = sendPhaseReducer(IDLE_PHASE, {
+      type: 'start',
+      runId: RUN_A,
+    });
     const refs = [{ citation: 'S1', sourceId: 'a', title: 't', url: 'u' }];
-    expect(sendPhaseReducer(preparing, { type: 'stream-start', refs })).toEqual({
+    expect(
+      sendPhaseReducer(preparing, {
+        type: 'stream-start',
+        runId: RUN_A,
+        refs,
+      }),
+    ).toEqual({
       status: 'streaming',
+      runId: RUN_A,
       text: '',
       refs,
       toolActivities: [],
     });
   });
 
-  it('stream-start 保留 preparing 期间的工具活动', () => {
-    let state = sendPhaseReducer(IDLE_PHASE, { type: 'start' });
+  it('stream-start 保留准备期间的工具活动', () => {
+    let state = sendPhaseReducer(IDLE_PHASE, {
+      type: 'start',
+      runId: RUN_A,
+    });
     state = sendPhaseReducer(state, {
       type: 'tool-activity',
+      runId: RUN_A,
       activity: activity('a1', 'running'),
     });
-    state = sendPhaseReducer(state, { type: 'stream-start' });
+    state = sendPhaseReducer(state, {
+      type: 'stream-start',
+      runId: RUN_A,
+    });
     expect(state.status).toBe('streaming');
-    expect((state as Extract<SendPhase, { status: 'streaming' }>).toolActivities).toHaveLength(1);
+    expect(
+      (state as Extract<SendPhase, { status: 'streaming' }>).toolActivities,
+    ).toHaveLength(1);
   });
 
-  it('chunk:整段覆盖文本', () => {
-    let state = sendPhaseReducer(IDLE_PHASE, { type: 'start' });
-    state = sendPhaseReducer(state, { type: 'stream-start' });
-    state = sendPhaseReducer(state, { type: 'chunk', text: '你好' });
-    state = sendPhaseReducer(state, { type: 'chunk', text: '你好,世界' });
-    expect((state as Extract<SendPhase, { status: 'streaming' }>).text).toBe(
-      '你好,世界',
-    );
-  });
-
-  it('idle 收到 chunk 不变(abort 后迟到回调守卫)', () => {
-    expect(sendPhaseReducer(IDLE_PHASE, { type: 'chunk', text: 'x' })).toBe(
-      IDLE_PHASE,
-    );
-  });
-
-  it('preparing 收到 chunk 不变', () => {
-    const preparing = sendPhaseReducer(IDLE_PHASE, { type: 'start' });
-    expect(sendPhaseReducer(preparing, { type: 'chunk', text: 'x' })).toBe(
-      preparing,
-    );
-  });
-
-  it('tool-activity:同 id 更新,新 id 追加', () => {
-    let state = sendPhaseReducer(IDLE_PHASE, { type: 'start' });
+  it('chunk 整段覆盖文本，同 id 工具活动执行更新', () => {
+    let state = sendPhaseReducer(IDLE_PHASE, {
+      type: 'start',
+      runId: RUN_A,
+    });
+    state = sendPhaseReducer(state, {
+      type: 'stream-start',
+      runId: RUN_A,
+    });
+    state = sendPhaseReducer(state, {
+      type: 'chunk',
+      runId: RUN_A,
+      text: '你好',
+    });
     state = sendPhaseReducer(state, {
       type: 'tool-activity',
+      runId: RUN_A,
       activity: activity('a1', 'running'),
     });
     state = sendPhaseReducer(state, {
       type: 'tool-activity',
-      activity: activity('a2', 'running'),
-    });
-    state = sendPhaseReducer(state, {
-      type: 'tool-activity',
+      runId: RUN_A,
       activity: activity('a1', 'success'),
     });
-    const activities = (
-      state as Extract<SendPhase, { status: 'preparing' }>
-    ).toolActivities;
-    expect(activities).toHaveLength(2);
-    expect(activities[0]).toMatchObject({ id: 'a1', status: 'success' });
+    const streaming = state as Extract<SendPhase, { status: 'streaming' }>;
+    expect(streaming.text).toBe('你好');
+    expect(streaming.toolActivities).toEqual([
+      expect.objectContaining({ id: 'a1', status: 'success' }),
+    ]);
   });
 
-  it('idle 收到 tool-activity 不变', () => {
+  it('旧 run 的 chunk、活动、审批和 finish 都不能污染新 run', () => {
+    let state = sendPhaseReducer(IDLE_PHASE, {
+      type: 'start',
+      runId: RUN_A,
+    });
+    state = sendPhaseReducer(state, {
+      type: 'approval-requested',
+      runId: RUN_A,
+      request: approval('request-a'),
+    });
+    state = sendPhaseReducer(state, { type: 'start', runId: RUN_B });
+    const current = state;
+
+    state = sendPhaseReducer(state, {
+      type: 'chunk',
+      runId: RUN_A,
+      text: '迟到内容',
+    });
+    state = sendPhaseReducer(state, {
+      type: 'tool-activity',
+      runId: RUN_A,
+      activity: activity('late', 'success'),
+    });
+    state = sendPhaseReducer(state, {
+      type: 'approval-requested',
+      runId: RUN_A,
+      request: approval('late-request'),
+    });
+    state = sendPhaseReducer(state, { type: 'finish', runId: RUN_A });
+
+    expect(state).toBe(current);
+    expect(state).toEqual({
+      status: 'preparing',
+      runId: RUN_B,
+      toolActivities: [],
+    });
+  });
+
+  it('idle 和不匹配 run 忽略迟到回调，reset 无条件回 idle', () => {
     expect(
       sendPhaseReducer(IDLE_PHASE, {
-        type: 'tool-activity',
-        activity: activity('a1', 'running'),
+        type: 'chunk',
+        runId: RUN_A,
+        text: 'x',
       }),
     ).toBe(IDLE_PHASE);
-  });
 
-  it('finish:任何态回到 idle,幂等', () => {
-    let state = sendPhaseReducer(IDLE_PHASE, { type: 'start' });
-    state = sendPhaseReducer(state, { type: 'stream-start' });
-    state = sendPhaseReducer(state, { type: 'finish' });
-    expect(state).toBe(IDLE_PHASE);
-    expect(sendPhaseReducer(state, { type: 'finish' })).toBe(IDLE_PHASE);
-  });
-
-  it('idle 收到 stream-start 不变(finish 后迟到守卫)', () => {
-    expect(sendPhaseReducer(IDLE_PHASE, { type: 'stream-start' })).toBe(
-      IDLE_PHASE,
+    const preparing = sendPhaseReducer(IDLE_PHASE, {
+      type: 'start',
+      runId: RUN_A,
+    });
+    expect(sendPhaseReducer(preparing, { type: 'stream-start', runId: RUN_B })).toBe(
+      preparing,
     );
+    expect(sendPhaseReducer(preparing, { type: 'reset' })).toBe(IDLE_PHASE);
   });
 });
