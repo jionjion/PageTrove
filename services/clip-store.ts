@@ -40,14 +40,38 @@ function toIndexEntry(clip: WebClip): ClipIndexEntry {
   };
 }
 
-export async function createClip(clip: WebClip): Promise<void> {
+export async function createClip(clip: WebClip, signal?: AbortSignal): Promise<void> {
   const db = await openPageTroveDatabase();
+  signal?.throwIfAborted();
   try {
     const tx = db.transaction(['clips', 'clipEntries'], 'readwrite');
-    await tx.objectStore('clips').put(clip);
-    await tx.objectStore('clipEntries').put(toIndexEntry(clip));
-    await tx.done;
+    const done = tx.done;
+    const abort = () => {
+      try {
+        tx.abort();
+      } catch {
+        // 事务已经提交或中止。
+      }
+    };
+    signal?.addEventListener('abort', abort, { once: true });
+    try {
+      signal?.throwIfAborted();
+      await tx.objectStore('clips').add(clip);
+      await tx.objectStore('clipEntries').add(toIndexEntry(clip));
+      await done;
+    } catch (error) {
+      await done.catch(() => undefined);
+      if (signal?.aborted) {
+        throw signal.reason ?? new DOMException('请求已取消', 'AbortError');
+      }
+      throw error;
+    } finally {
+      signal?.removeEventListener('abort', abort);
+    }
   } catch (error) {
+    if (signal?.aborted) {
+      throw signal.reason ?? new DOMException('请求已取消', 'AbortError');
+    }
     throw mapDatabaseError(error);
   }
   emitDataChanged('clips');
@@ -56,26 +80,51 @@ export async function createClip(clip: WebClip): Promise<void> {
 export async function updateClip(
   id: string,
   patch: Partial<WebClip>,
+  signal?: AbortSignal,
 ): Promise<WebClip> {
   const db = await openPageTroveDatabase();
+  signal?.throwIfAborted();
   let next: WebClip;
   try {
     const tx = db.transaction(['clips', 'clipEntries'], 'readwrite');
-    const clips = tx.objectStore('clips');
-    const existing = await clips.get(id);
-    if (!existing) {
-      throw new AppError('SAVE_FAILED', '收藏不存在或已被删除');
-    }
-    next = {
-      ...existing,
-      ...patch,
-      id,
-      updatedAt: new Date().toISOString(),
+    const done = tx.done;
+    const abort = () => {
+      try {
+        tx.abort();
+      } catch {
+        // 事务已经提交或中止。
+      }
     };
-    await clips.put(next);
-    await tx.objectStore('clipEntries').put(toIndexEntry(next));
-    await tx.done;
+    signal?.addEventListener('abort', abort, { once: true });
+    const clips = tx.objectStore('clips');
+    try {
+      const existing = await clips.get(id);
+      if (!existing) {
+        throw new AppError('SAVE_FAILED', '收藏不存在或已被删除');
+      }
+      signal?.throwIfAborted();
+      next = {
+        ...existing,
+        ...patch,
+        id,
+        updatedAt: new Date().toISOString(),
+      };
+      await clips.put(next);
+      await tx.objectStore('clipEntries').put(toIndexEntry(next));
+      await done;
+    } catch (error) {
+      await done.catch(() => undefined);
+      if (signal?.aborted) {
+        throw signal.reason ?? new DOMException('请求已取消', 'AbortError');
+      }
+      throw error;
+    } finally {
+      signal?.removeEventListener('abort', abort);
+    }
   } catch (error) {
+    if (signal?.aborted) {
+      throw signal.reason ?? new DOMException('请求已取消', 'AbortError');
+    }
     throw mapDatabaseError(error);
   }
   emitDataChanged('clips');
@@ -112,9 +161,7 @@ export async function getClipsByIds(ids: string[]): Promise<WebClip[]> {
   const db = await openPageTroveDatabase();
   try {
     const tx = db.transaction('clips', 'readonly');
-    const results = await Promise.all(
-      uniqueIds.map((id) => tx.store.get(id)),
-    );
+    const results = await Promise.all(uniqueIds.map((id) => tx.store.get(id)));
     await tx.done;
     return results.filter((clip): clip is WebClip => clip !== undefined);
   } catch (error) {
@@ -156,9 +203,7 @@ export async function queryClips(query: ClipQuery = {}): Promise<ClipIndexEntry[
     );
   }
   if (query.tags && query.tags.length > 0) {
-    entries = entries.filter((e) =>
-      query.tags!.some((tag) => e.tags.includes(tag)),
-    );
+    entries = entries.filter((e) => query.tags!.some((tag) => e.tags.includes(tag)));
   }
   if (query.domain) {
     entries = entries.filter((e) => e.domain === query.domain);
@@ -203,7 +248,10 @@ export async function exportAll(): Promise<string> {
   );
 }
 
-export function readOptionalString(value: unknown, maxLength: number): string | undefined {
+export function readOptionalString(
+  value: unknown,
+  maxLength: number,
+): string | undefined {
   if (typeof value !== 'string') return undefined;
   const text = value.trim();
   return text ? text.slice(0, maxLength) : undefined;
@@ -249,11 +297,7 @@ export function readIsoDate(value: unknown, fallback: string): string {
 
 function nextImportId(value: unknown, usedIds: Set<string>): string {
   const candidate = readOptionalString(value, IMPORT_LIMITS.id);
-  if (
-    candidate &&
-    /^[a-zA-Z0-9_-]+$/.test(candidate) &&
-    !usedIds.has(candidate)
-  ) {
+  if (candidate && /^[a-zA-Z0-9_-]+$/.test(candidate) && !usedIds.has(candidate)) {
     usedIds.add(candidate);
     return candidate;
   }
@@ -287,22 +331,13 @@ export function normalizeImportedClip(
     normalizedUrl: normalizeUrl(url.toString(), canonical?.toString()),
     domain: url.hostname.toLowerCase(),
     title,
-    description: readOptionalString(
-      raw.description,
-      IMPORT_LIMITS.description,
-    ),
+    description: readOptionalString(raw.description, IMPORT_LIMITS.description),
     faviconUrl: readFaviconUrl(raw.faviconUrl),
     summary: readOptionalString(raw.summary, IMPORT_LIMITS.summary),
     tags: readTags(raw.tags),
     userNote: readOptionalString(raw.userNote, IMPORT_LIMITS.note),
-    selectedText: readOptionalString(
-      raw.selectedText,
-      IMPORT_LIMITS.selectedText,
-    ),
-    extractedText: readOptionalString(
-      raw.extractedText,
-      IMPORT_LIMITS.extractedText,
-    ),
+    selectedText: readOptionalString(raw.selectedText, IMPORT_LIMITS.selectedText),
+    extractedText: readOptionalString(raw.extractedText, IMPORT_LIMITS.extractedText),
     createdAt,
     updatedAt: readIsoDate(raw.updatedAt, createdAt),
   };
@@ -342,10 +377,7 @@ export async function importAll(json: string): Promise<ImportResult> {
     throw new AppError('SAVE_FAILED', '导入文件缺少 clips 字段');
   }
   if (clips.length > MAX_IMPORT_CLIPS) {
-    throw new AppError(
-      'SAVE_FAILED',
-      `单次最多导入 ${MAX_IMPORT_CLIPS} 条收藏`,
-    );
+    throw new AppError('SAVE_FAILED', `单次最多导入 ${MAX_IMPORT_CLIPS} 条收藏`);
   }
 
   // 事务外完成全部校验和去重计算
@@ -377,13 +409,19 @@ export async function importAll(json: string): Promise<ImportResult> {
     const db = await openPageTroveDatabase();
     try {
       const tx = db.transaction(['clips', 'clipEntries'], 'readwrite');
+      const done = tx.done;
       const clipsStore = tx.objectStore('clips');
       const entriesStore = tx.objectStore('clipEntries');
-      for (const clip of importedClips) {
-        void clipsStore.put(clip);
-        void entriesStore.put(toIndexEntry(clip));
+      try {
+        for (const clip of importedClips) {
+          await clipsStore.add(clip);
+          await entriesStore.add(toIndexEntry(clip));
+        }
+        await done;
+      } catch (error) {
+        await done.catch(() => undefined);
+        throw error;
       }
-      await tx.done;
     } catch (error) {
       throw mapDatabaseError(error);
     }
