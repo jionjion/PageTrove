@@ -1,14 +1,24 @@
-import {useEffect, useRef, useState} from 'react';
-import {browser} from 'wxt/browser';
-import {Button, Tooltip, Typography} from 'antd';
-import {FileSearchOutlined, FolderOpenOutlined, HistoryOutlined, PlusOutlined, SettingOutlined, StarOutlined,} from '@ant-design/icons';
-import {CurrentPageView} from '@/components/CurrentPageView';
-import {ClipListView} from '@/components/ClipListView';
-import {ChatView} from '@/components/ChatView';
-import type {ChatCommand} from '@/hooks/useChatController';
-import {ChatHistoryView} from '@/components/ChatHistoryView';
-import {ResearchSetupView} from '@/components/ResearchSetupView';
-import {onQuoteIntentChanged, takeNextQuoteIntent,} from '@/services/chat-intent-store';
+import { useEffect, useRef, useState } from 'react';
+import { browser } from 'wxt/browser';
+import { Button, Tooltip, Typography } from 'antd';
+import {
+  FileSearchOutlined,
+  FolderOpenOutlined,
+  HistoryOutlined,
+  PlusOutlined,
+  SettingOutlined,
+  StarOutlined,
+} from '@ant-design/icons';
+import { CurrentPageView } from '@/components/CurrentPageView';
+import { ClipListView } from '@/components/ClipListView';
+import { ChatView } from '@/components/ChatView';
+import type { ChatCommand } from '@/hooks/useChatController';
+import { ChatHistoryView } from '@/components/ChatHistoryView';
+import { ResearchSetupView } from '@/components/ResearchSetupView';
+import {
+  onQuoteIntentChanged,
+  requestNextQuoteIntent,
+} from '@/services/chat-intent-store';
 
 type View = 'chat' | 'research' | 'history' | 'current' | 'clips';
 
@@ -20,6 +30,9 @@ export default function App() {
   const [chatTitle, setChatTitle] = useState('当前网页');
   /** 已消费过的意图 id，防止重复下发 */
   const consumedIntentIds = useRef(new Set<string>());
+  /** storage 变化可能密集到达；同一侧边栏只允许一个 drain 循环。 */
+  const consumingIntents = useRef(false);
+  const consumeAgain = useRef(false);
 
   const dispatchChat = (command: ChatCommand) => {
     setChatCommand(command);
@@ -29,17 +42,31 @@ export default function App() {
 
   /** 消费右键引用意图队列，逐条下发新会话。 */
   const consumeQuoteIntents = async () => {
-    for (;;) {
-      const intent = await takeNextQuoteIntent();
-      if (!intent) return;
-      if (consumedIntentIds.current.has(intent.id)) continue;
-      consumedIntentIds.current.add(intent.id);
-      dispatchChat({ kind: 'new', quote: intent });
+    if (consumingIntents.current) {
+      consumeAgain.current = true;
+      return;
+    }
+    consumingIntents.current = true;
+    try {
+      do {
+        consumeAgain.current = false;
+        for (;;) {
+          const intent = await requestNextQuoteIntent();
+          if (!intent) break;
+          if (consumedIntentIds.current.has(intent.id)) continue;
+          consumedIntentIds.current.add(intent.id);
+          dispatchChat({ kind: 'new', quote: intent });
+        }
+      } while (consumeAgain.current);
+    } catch (error) {
+      console.error('读取引用意图失败', error);
+    } finally {
+      consumingIntents.current = false;
     }
   };
 
   useEffect(() => {
-    void consumeQuoteIntents();
+    queueMicrotask(() => void consumeQuoteIntents());
     return onQuoteIntentChanged(() => void consumeQuoteIntents());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -116,22 +143,34 @@ export default function App() {
       <div className="app-body" style={view === 'chat' ? undefined : { display: 'none' }}>
         <ChatView command={chatCommand} nonce={chatNonce} onTitleChange={setChatTitle} />
       </div>
-      <div className="app-body" style={view === 'research' ? undefined : { display: 'none' }}>
+      <div
+        className="app-body"
+        style={view === 'research' ? undefined : { display: 'none' }}
+      >
         <ResearchSetupView
           active={view === 'research'}
           onStart={(scope) => dispatchChat({ kind: 'new-scope', scope })}
         />
       </div>
-      <div className="app-body" style={view === 'history' ? undefined : { display: 'none' }}>
+      <div
+        className="app-body"
+        style={view === 'history' ? undefined : { display: 'none' }}
+      >
         <ChatHistoryView
           active={view === 'history'}
           onOpen={(sessionId) => dispatchChat({ kind: 'open', sessionId })}
         />
       </div>
-      <div className="app-body" style={view === 'current' ? undefined : { display: 'none' }}>
+      <div
+        className="app-body"
+        style={view === 'current' ? undefined : { display: 'none' }}
+      >
         <CurrentPageView />
       </div>
-      <div className="app-body" style={view === 'clips' ? undefined : { display: 'none' }}>
+      <div
+        className="app-body"
+        style={view === 'clips' ? undefined : { display: 'none' }}
+      >
         <ClipListView
           active={view === 'clips'}
           onChat={(clipId) => dispatchChat({ kind: 'new', clipId })}

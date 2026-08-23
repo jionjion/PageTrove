@@ -1,8 +1,19 @@
-import { enqueueQuoteIntent } from '@/services/chat-intent-store';
+import {
+  enqueueQuoteIntent,
+  isTakeIntentMessage,
+  takeNextQuoteIntent,
+} from '@/services/chat-intent-store';
+import { registerSettingsPatchWriter } from '@/services/settings-store';
 
 const MENU_ID = 'pagetrove-ask-selection';
 
 export default defineBackground(() => {
+  registerSettingsPatchWriter();
+  browser.runtime.onMessage.addListener((message: unknown) => {
+    if (!isTakeIntentMessage(message)) return;
+    return takeNextQuoteIntent();
+  });
+
   // 点击扩展图标时打开侧边栏
   browser.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
