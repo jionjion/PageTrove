@@ -1,4 +1,5 @@
 import type { ChatToolCall } from '@/types/chat';
+import type { ToolApprovalHandler } from '@/types/mcp-tool';
 
 /* ---------- 领域侧共享类型(UI/编排/提示词共用) ---------- */
 
@@ -22,12 +23,24 @@ export interface ChatContext {
 }
 
 export interface ChatToolActivity extends Omit<ChatToolCall, 'status'> {
-  status: 'running' | 'success' | 'error';
+  status: 'awaiting-approval' | 'running' | 'success' | 'error' | 'denied' | 'unknown';
+}
+
+export interface ToolExecutionRecordResult {
+  kind: 'recorded' | 'already-success' | 'blocked-unknown';
+  execution: ChatToolCall;
 }
 
 export interface ChatStreamOptions {
   imageDataUrl?: string;
   onToolActivity?: (activity: ChatToolActivity) => void;
+  /**
+   * 工具执行审计持久化边界。已授权工具只有在 unknown 记录落盘后才会真正调用。
+   */
+  onToolExecution?: (execution: ChatToolCall) => Promise<ToolExecutionRecordResult>;
+  /** 稳定 user message id；用于阻止同一问题重试时重复外部副作用。 */
+  toolTurnId?: string;
+  requestToolApproval?: ToolApprovalHandler;
 }
 
 export interface ChatStreamResult {

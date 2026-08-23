@@ -7,6 +7,7 @@ interface Props {
   onChange: (next: AnalyzeResult) => void;
   /** 重新执行 AI 整理 */
   onRetry?: () => void;
+  disabled?: boolean;
 }
 
 const Label = ({ children }: { children: string }) => (
@@ -16,7 +17,7 @@ const Label = ({ children }: { children: string }) => (
 );
 
 /** AI 结果编辑器：保存前允许用户修改所有字段 */
-export function AnalyzeResultEditor({ value, onChange, onRetry }: Props) {
+export function AnalyzeResultEditor({ value, onChange, onRetry, disabled }: Props) {
   return (
     <Card
       size="small"
@@ -24,7 +25,13 @@ export function AnalyzeResultEditor({ value, onChange, onRetry }: Props) {
       style={{ width: '100%' }}
       extra={
         onRetry && (
-          <Button size="small" type="text" icon={<ReloadOutlined />} onClick={onRetry}>
+          <Button
+            size="small"
+            type="text"
+            icon={<ReloadOutlined />}
+            onClick={onRetry}
+            disabled={disabled}
+          >
             重新整理
           </Button>
         )
@@ -34,6 +41,7 @@ export function AnalyzeResultEditor({ value, onChange, onRetry }: Props) {
       <Input.TextArea
         autoSize={{ minRows: 3, maxRows: 6 }}
         value={value.summary}
+        disabled={disabled}
         onChange={(e) => onChange({ ...value, summary: e.target.value })}
       />
 
@@ -43,6 +51,7 @@ export function AnalyzeResultEditor({ value, onChange, onRetry }: Props) {
         style={{ width: '100%' }}
         placeholder="输入后回车添加标签"
         value={value.tags}
+        disabled={disabled}
         onChange={(tags) => onChange({ ...value, tags: tags.slice(0, 5) })}
         open={false}
         suffixIcon={null}

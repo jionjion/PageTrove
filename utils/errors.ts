@@ -4,12 +4,15 @@ export type ErrorCode =
   | 'EMPTY_CONTENT'
   | 'MISSING_API_KEY'
   | 'NETWORK_ERROR'
+  | 'REQUEST_TIMEOUT'
+  | 'REQUEST_CANCELLED'
   | 'AI_UNAUTHORIZED'
   | 'AI_ANALYZE_FAILED'
   | 'INVALID_AI_RESPONSE'
   | 'DUPLICATE_CLIP'
   | 'STORAGE_FULL'
   | 'SAVE_FAILED'
+  | 'WRITE_CONFLICT'
   | 'DB_OPEN_FAILED'
   | 'DB_BLOCKED'
   | 'DB_VERSION_MISMATCH';
@@ -20,12 +23,15 @@ const MESSAGES: Record<ErrorCode, string> = {
   EMPTY_CONTENT: '未能提取到页面内容，请刷新页面后重试',
   MISSING_API_KEY: '尚未配置 API Key，请先前往设置页选择供应商并填写',
   NETWORK_ERROR: '网络请求失败，请检查网络后重试',
+  REQUEST_TIMEOUT: '请求超时，请稍后重试',
+  REQUEST_CANCELLED: '请求已取消',
   AI_UNAUTHORIZED: 'API Key 无效或额度不足，请检查设置',
   AI_ANALYZE_FAILED: 'AI 分析失败，请稍后重试',
   INVALID_AI_RESPONSE: 'AI 返回格式异常，请重试',
   DUPLICATE_CLIP: '该网页已收藏，请勿重复保存',
   STORAGE_FULL: '本地存储空间不足，请清理部分收藏',
   SAVE_FAILED: '保存失败，请重试',
+  WRITE_CONFLICT: '数据已在其他窗口更新，请刷新后重试',
   DB_OPEN_FAILED: '本地数据库打开失败，请重试',
   DB_BLOCKED: '数据库升级被其他拾页页面占用，请关闭其他拾页设置页或侧边栏后重试',
   DB_VERSION_MISMATCH: '本地数据库版本不兼容，请更新扩展后重试',

@@ -16,11 +16,7 @@ const LIMITS = {
   content: 200_000,
 };
 
-function cleanStringArray(
-  value: unknown,
-  maxItems: number,
-  maxLength: number,
-): string[] {
+function cleanStringArray(value: unknown, maxItems: number, maxLength: number): string[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter((item): item is string => typeof item === 'string')
@@ -29,16 +25,17 @@ function cleanStringArray(
     .slice(0, maxItems);
 }
 
-export function validateAnalyzeResult(raw: unknown): AnalyzeResult {
+export function validateAnalyzeResult(
+  raw: unknown,
+  requireContent = false,
+): AnalyzeResult {
   if (typeof raw !== 'object' || raw === null) {
     throw new AppError('INVALID_AI_RESPONSE');
   }
   const data = raw as Record<string, unknown>;
 
   const summary =
-    typeof data.summary === 'string'
-      ? data.summary.trim().slice(0, LIMITS.summary)
-      : '';
+    typeof data.summary === 'string' ? data.summary.trim().slice(0, LIMITS.summary) : '';
   if (!summary) {
     throw new AppError('INVALID_AI_RESPONSE');
   }
@@ -49,7 +46,7 @@ export function validateAnalyzeResult(raw: unknown): AnalyzeResult {
   }
 
   const confidence =
-    typeof data.confidence === 'number'
+    typeof data.confidence === 'number' && Number.isFinite(data.confidence)
       ? Math.min(1, Math.max(0, data.confidence))
       : 0.5;
 
@@ -57,6 +54,9 @@ export function validateAnalyzeResult(raw: unknown): AnalyzeResult {
     typeof data.content === 'string'
       ? data.content.trim().slice(0, LIMITS.content) || undefined
       : undefined;
+  if (requireContent && !content) {
+    throw new AppError('INVALID_AI_RESPONSE');
+  }
 
   return {
     summary,
@@ -72,6 +72,7 @@ export async function analyzePage(
   note: string,
   settings: ExtensionSettings,
   refineContent: boolean,
+  signal?: AbortSignal,
 ): Promise<AnalyzeResult> {
   if (!settings.apiKey.trim()) {
     throw new AppError('MISSING_API_KEY');
@@ -84,22 +85,26 @@ export async function analyzePage(
   // 输出解析失败时允许重试一次
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const content = await requestJsonCompletion(settings, [
-      {
-        role: 'system',
-        content: refineContent
-          ? ANALYZE_SYSTEM_PROMPT_WITH_CONTENT
-          : ANALYZE_SYSTEM_PROMPT,
-      },
-      { role: 'user', content: buildAnalyzeUserPrompt(snapshot, note) },
-    ]);
+    signal?.throwIfAborted();
+    const content = await requestJsonCompletion(
+      settings,
+      [
+        {
+          role: 'system',
+          content: refineContent
+            ? ANALYZE_SYSTEM_PROMPT_WITH_CONTENT
+            : ANALYZE_SYSTEM_PROMPT,
+        },
+        { role: 'user', content: buildAnalyzeUserPrompt(snapshot, note) },
+      ],
+      180_000,
+      signal,
+    );
     try {
-      return validateAnalyzeResult(JSON.parse(content));
+      return validateAnalyzeResult(JSON.parse(content), refineContent);
     } catch (error) {
       lastError = error;
     }
   }
-  throw lastError instanceof AppError
-    ? lastError
-    : new AppError('INVALID_AI_RESPONSE');
+  throw lastError instanceof AppError ? lastError : new AppError('INVALID_AI_RESPONSE');
 }
