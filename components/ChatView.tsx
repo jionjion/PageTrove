@@ -44,6 +44,8 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     capabilities,
     copiedIndex,
     ratings,
+    canRefreshPage,
+    refreshPagePending,
     messagesRef,
     handleMessagesScroll,
     awayFromBottom,
@@ -63,6 +65,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     handleCopy,
     handleRate,
     handleModelChange,
+    toggleRefreshPage,
     settleToolApproval,
   } = useChatController({ command, nonce, onTitleChange });
   const verbose = chatSettings?.mcpVerboseLog ?? true;
@@ -195,6 +198,8 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
         }
         modelOptions={modelOptions}
         awayFromBottom={awayFromBottom}
+        canRefreshPage={canRefreshPage}
+        refreshPagePending={refreshPagePending}
         onInputChange={setInput}
         onSend={() => void handleSend()}
         onStop={handleStop}
@@ -202,6 +207,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
         onCapture={() => void handleCapture()}
         onModelChange={handleModelChange}
         onScrollToBottom={() => resumeLatest()}
+        onToggleRefreshPage={toggleRefreshPage}
       />
     </div>
   );

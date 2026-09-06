@@ -5,6 +5,8 @@
 body {
   margin: 0;
   background: #f5f5f5;
+  /* 侧边栏高度恒定 100vh；Tooltip 等浮层重排的瞬时溢出不该触发面板滚动条 */
+  overflow: hidden;
 }
 
 .app {

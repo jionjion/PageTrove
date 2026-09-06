@@ -2,6 +2,7 @@ import { Button, Input, Select, Tooltip } from 'antd';
 import {
   AimOutlined,
   ArrowDownOutlined,
+  ReloadOutlined,
   ScissorOutlined,
   SendOutlined,
   StopOutlined,
@@ -19,6 +20,10 @@ interface Props {
   /** 按供应商分组的两级模型选项。 */
   modelOptions: ModelOptionGroup[];
   awayFromBottom: boolean;
+  /** 是否显示"重新读取当前页面"按钮（仅当前网页会话）。 */
+  canRefreshPage: boolean;
+  /** 已开启：下次提问将重新读取当前页面。 */
+  refreshPagePending: boolean;
   onInputChange: (value: string) => void;
   onSend: () => void;
   onStop: () => void;
@@ -26,6 +31,7 @@ interface Props {
   onCapture: () => void;
   onModelChange: (model: string) => void;
   onScrollToBottom: () => void;
+  onToggleRefreshPage: () => void;
 }
 
 /** 输入区:文本框、模型选择与发送/停止/选取/截图/回到底部按钮组。 */
@@ -38,6 +44,8 @@ export function ChatComposer({
   model,
   modelOptions,
   awayFromBottom,
+  canRefreshPage,
+  refreshPagePending,
   onInputChange,
   onSend,
   onStop,
@@ -45,6 +53,7 @@ export function ChatComposer({
   onCapture,
   onModelChange,
   onScrollToBottom,
+  onToggleRefreshPage,
 }: Props) {
   return (
     <div className="chat-input">
@@ -81,6 +90,24 @@ export function ChatComposer({
                   size="small"
                   icon={<ArrowDownOutlined />}
                   onClick={onScrollToBottom}
+                />
+              </Tooltip>
+            )}
+            {canRefreshPage && (
+              <Tooltip
+                title={
+                  refreshPagePending
+                    ? '已开启：下次提问将重新读取当前页面'
+                    : '下次提问重新读取当前页面'
+                }
+              >
+                <Button
+                  size="small"
+                  type={refreshPagePending ? 'primary' : 'default'}
+                  ghost={refreshPagePending}
+                  icon={<ReloadOutlined />}
+                  disabled={busy}
+                  onClick={onToggleRefreshPage}
                 />
               </Tooltip>
             )}

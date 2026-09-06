@@ -89,6 +89,8 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
   const [scopeNotice, setScopeNotice] = useState<string>();
 
   const [input, setInput] = useState('');
+  /** 已开启"下次提问重新读取当前页面";发送成功后自动关闭。 */
+  const [refreshPagePending, setRefreshPagePending] = useState(false);
   const [picked, setPicked] = useState<string>();
   const [attachment, setAttachment] = useState<CapturedImage>();
   const [picking, setPicking] = useState(false);
@@ -412,6 +414,7 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
     setError(undefined);
     dispatchSendPhase({ type: 'reset' });
     setInput('');
+    setRefreshPagePending(false);
     setPicked(undefined);
     setAttachment(undefined);
     setPicking(false);
@@ -605,6 +608,7 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
     const image = attachment;
     const quote = draftQuote;
     const pickedText = picked;
+    const refreshPage = refreshPagePending;
     const content = buildUserMessageContent({
       question,
       hasImage: Boolean(image),
@@ -618,6 +622,7 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
     setInput('');
     setPicked(undefined);
     setAttachment(undefined);
+    setRefreshPagePending(false);
 
     try {
       const settings = await getSettings();
@@ -666,6 +671,24 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
           createdAt: now,
           updatedAt: now,
         };
+      } else if (refreshPage && current.page && !current.clipId && !current.scope) {
+        // 用户要求重新读取当前页面：固化的上下文替换为最新快照并随本轮落盘。
+        const snapshot = await extractPage({
+          maxContentLength: settings.maxContentLength,
+          includeSelectedText: settings.includeSelectedText,
+        });
+        assertCurrentRun(run);
+        current = {
+          ...current,
+          page: {
+            title: snapshot.title,
+            url: snapshot.url,
+            content: [snapshot.description, snapshot.selectedText, snapshot.mainText]
+              .filter(Boolean)
+              .join('\n'),
+          },
+        };
+        onTitleChange(snapshot.title);
       }
       const withUser: ChatSession = {
         ...current,
@@ -720,6 +743,7 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
           setInput(question);
           setPicked(pickedText);
           setAttachment(image);
+          setRefreshPagePending(refreshPage);
         }
         if (!isAbortError(caught)) setError(toErrorMessage(caught));
       }
@@ -952,6 +976,10 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
 
   const activeScope = session?.scope ?? draftScope;
 
+  /** 仅"当前网页"会话可重新读取页面；收藏/多来源会话的上下文不来自活动标签页。 */
+  const canRefreshPage = Boolean(session?.page && !session.clipId && !session.scope);
+  const toggleRefreshPage = () => setRefreshPagePending((value) => !value);
+
   /**
    * legacy 兼容:旧 assistant 消息没有 citationRefs 时,
    * 按当前 scope 下标现场构建映射(维持旧行为),不写回存储。
@@ -988,6 +1016,8 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
     capabilities,
     copiedIndex,
     ratings,
+    canRefreshPage,
+    refreshPagePending,
     // 自动滚动
     messagesRef,
     handleMessagesScroll,
@@ -1009,6 +1039,7 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
     handleCopy,
     handleRate,
     handleModelChange,
+    toggleRefreshPage,
     settleToolApproval,
   } as const;
 }
