@@ -234,6 +234,9 @@ describe('备份秘密与 endpoint 安全', () => {
     const safe = sanitizeSettingsForBackup({
       ...DEFAULT_SETTINGS,
       apiKey: 'secret-api-key',
+      providerCredentials: {
+        deepseek: { apiKey: 'secret-deepseek-key', baseUrl: 'https://api.deepseek.com' },
+      },
       mcpServers: [
         {
           id: 'm1',
@@ -249,6 +252,10 @@ describe('备份秘密与 endpoint 安全', () => {
     });
 
     expect(safe.apiKey).toBe('');
+    expect(safe.providerCredentials.deepseek).toEqual({
+      apiKey: '',
+      baseUrl: 'https://api.deepseek.com',
+    });
     expect(safe.mcpServers[0]).not.toHaveProperty('bearerToken');
     expect(safe.mcpServers[0]).not.toHaveProperty('headersJson');
     expect(JSON.stringify(safe)).not.toContain('secret');

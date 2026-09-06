@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   App as AntApp,
-  AutoComplete,
   Button,
   Checkbox,
   Input,
@@ -92,18 +91,32 @@ export default function App() {
   const handleProviderChange = (id: string) => {
     const next = PROVIDERS.find((p) => p.id === id);
     if (!next) return;
+    // 先把当前供应商的凭据存入 providerCredentials，再载入目标供应商的凭据。
+    const credentials = {
+      ...settings.providerCredentials,
+      [settings.provider]: { apiKey: settings.apiKey, baseUrl: settings.baseUrl },
+    };
+    const saved = credentials[id];
     update({
       provider: id,
-      baseUrl: next.baseUrl,
-      model: next.models[0] ?? '',
-      apiKey: '',
+      baseUrl: saved?.baseUrl || next.baseUrl,
+      model: settings.modelPool[id]?.[0] ?? next.models[0] ?? '',
+      apiKey: saved?.apiKey ?? '',
+      providerCredentials: credentials,
     });
   };
 
   const handleSave = async () => {
     try {
       settings.mcpServers.filter((server) => server.enabled).forEach(validateMcpServer);
-      await saveSettings(settings);
+      await saveSettings({
+        ...settings,
+        // 当前供应商的凭据同步进 providerCredentials，切换供应商时不丢失。
+        providerCredentials: {
+          ...settings.providerCredentials,
+          [settings.provider]: { apiKey: settings.apiKey, baseUrl: settings.baseUrl },
+        },
+      });
       message.success('设置已保存');
     } catch (e) {
       message.error(toErrorMessage(e));
@@ -234,6 +247,13 @@ export default function App() {
       />
       <Hint>先选择供应商，Base URL 和模型会自动填好，再填入对应的 API Key。</Hint>
 
+      <Label>Base URL</Label>
+      <Input
+        placeholder="https://…（OpenAI 兼容接口地址）"
+        value={settings.baseUrl}
+        onChange={(e) => update({ baseUrl: e.target.value })}
+      />
+
       <Label>API Key</Label>
       <Input.Password
         placeholder="sk-…"
@@ -261,29 +281,40 @@ export default function App() {
       </Hint>
 
       <Label>模型</Label>
-      <AutoComplete
+      <Select
+        mode="tags"
         style={{ width: '100%' }}
-        placeholder="模型名称"
-        value={settings.model}
-        onChange={(value) => update({ model: value })}
+        placeholder="输入模型名称后回车，可添加多个"
+        value={settings.modelPool[settings.provider] ?? []}
+        onChange={(models: string[]) => {
+          const cleaned = [...new Set(models.map((m) => m.trim()).filter(Boolean))];
+          const patch: Partial<ExtensionSettings> = {
+            modelPool: { ...settings.modelPool, [settings.provider]: cleaned },
+          };
+          // 当前模型被移除或尚未选择时，回退到池中第一个。
+          if (!cleaned.includes(settings.model)) {
+            patch.model = cleaned[0] ?? '';
+          }
+          update(patch);
+        }}
         options={(preset?.models ?? []).map((m) => ({ value: m }))}
       />
+      <Hint>可配置多个模型，在聊天输入框中随时切换。</Hint>
 
-      <Label>Base URL</Label>
-      <Input
-        placeholder="https://…（OpenAI 兼容接口地址）"
-        value={settings.baseUrl}
-        onChange={(e) => update({ baseUrl: e.target.value })}
+      <Label>当前模型</Label>
+      <Select
+        style={{ width: '100%' }}
+        placeholder="从上方已配置的模型中选择"
+        value={settings.model || undefined}
+        onChange={(value: string) => update({ model: value })}
+        options={(settings.modelPool[settings.provider] ?? []).map((m) => ({
+          value: m,
+          label: m,
+        }))}
       />
 
-      <Label>网页采集</Label>
+      <Label>模型能力</Label>
       <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-        <Checkbox
-          checked={settings.includeSelectedText}
-          onChange={(e) => update({ includeSelectedText: e.target.checked })}
-        >
-          包含当前选中文字
-        </Checkbox>
         <Checkbox
           checked={capabilities.vision}
           disabled={!settings.model.trim()}
@@ -303,8 +334,17 @@ export default function App() {
         当前能力配置对应“{preset?.label ?? settings.provider} /{' '}
         {settings.model || '未选择模型'}”；切换模型后会分别记忆。
         <br />
-        图片只在你主动截图或选取视觉元素时发送；页面内容不会读取密码、Cookie 或本地存储。
+        图片只在你主动截图或选取视觉元素时发送。
       </Hint>
+
+      <Label>网页采集</Label>
+      <Checkbox
+        checked={settings.includeSelectedText}
+        onChange={(e) => update({ includeSelectedText: e.target.checked })}
+      >
+        包含当前选中文字
+      </Checkbox>
+      <Hint>页面内容不会读取密码、Cookie 或本地存储。</Hint>
     </>
   );
 

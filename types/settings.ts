@@ -13,6 +13,12 @@ export interface ModelCapabilities {
   tools: boolean;
 }
 
+/** 单个供应商的连接信息（active 供应商同时镜像在扁平字段上）。 */
+export interface ProviderCredential {
+  apiKey: string;
+  baseUrl: string;
+}
+
 export type McpTransport = 'streamable-http' | 'sse';
 
 export interface McpServerSettings {
@@ -71,6 +77,11 @@ export interface ExtensionSettings {
   baseUrl: string;
   model: string;
 
+  /** 各供应商下已配置的模型名集合：provider -> model names。 */
+  modelPool: Record<string, string[]>;
+  /** 各供应商的连接信息；active 供应商的值以扁平字段为准。 */
+  providerCredentials: Record<string, ProviderCredential>;
+
   maxContentLength: number;
   includeSelectedText: boolean;
   /** 以 provider::model 为键，分别保存每个模型的能力覆盖值。 */
@@ -109,6 +120,9 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   apiKey: '',
   baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   model: 'qwen3.7-plus',
+
+  modelPool: { qwen: ['qwen3.7-plus'] },
+  providerCredentials: {},
 
   maxContentLength: 12_000,
   includeSelectedText: true,

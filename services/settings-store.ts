@@ -5,6 +5,7 @@ import {
   type ExtensionSettings,
   type McpServerSettings,
   type ModelCapabilities,
+  type ProviderCredential,
 } from '@/types/settings';
 
 const SETTINGS_KEY = 'settings';
@@ -36,6 +37,8 @@ export const SETTINGS_LIMITS = {
   maxContentLength: 200_000,
   modelCapabilities: 500,
   modelCapabilityKeyLength: 600,
+  modelPoolModels: 50,
+  providerCredentials: 50,
   mcpServers: 50,
   mcpServerIdLength: 128,
   mcpServerNameLength: 200,
@@ -90,6 +93,72 @@ function cloneMcpServers(servers: McpServerSettings[]): McpServerSettings[] {
     ...server,
     disabledTools: [...server.disabledTools],
   }));
+}
+
+function cloneModelPool(pool: Record<string, string[]>): Record<string, string[]> {
+  return Object.fromEntries(Object.entries(pool).map(([key, value]) => [key, [...value]]));
+}
+
+function cloneProviderCredentials(
+  credentials: Record<string, ProviderCredential>,
+): Record<string, ProviderCredential> {
+  return Object.fromEntries(
+    Object.entries(credentials).map(([key, value]) => [key, { ...value }]),
+  );
+}
+
+function isKnownProvider(id: string): boolean {
+  return PROVIDERS.some((preset) => preset.id === id);
+}
+
+function decodeModelPool(
+  value: unknown,
+  fallback: Record<string, string[]>,
+): Record<string, string[]> {
+  // 字段缺失视为旧版数据：返回空池，由 decodeSettings 兜底补入当前生效模型。
+  if (value === undefined) return {};
+  if (!isRecord(value)) return cloneModelPool(fallback);
+
+  const entries: [string, string[]][] = [];
+  for (const rawKey in value) {
+    if (!Object.hasOwn(value, rawKey)) continue;
+    if (!isKnownProvider(rawKey)) continue;
+    const rawModels = value[rawKey];
+    if (!Array.isArray(rawModels)) continue;
+    const models = [
+      ...new Set(
+        rawModels
+          .slice(0, SETTINGS_LIMITS.modelPoolModels)
+          .map((model) => readString(model, SETTINGS_LIMITS.modelLength))
+          .filter((model): model is string => model !== undefined),
+      ),
+    ];
+    if (models.length > 0) entries.push([rawKey, models]);
+  }
+  return Object.fromEntries(entries);
+}
+
+function decodeProviderCredentials(
+  value: unknown,
+  fallback: Record<string, ProviderCredential>,
+): Record<string, ProviderCredential> {
+  if (!isRecord(value)) return cloneProviderCredentials(fallback);
+
+  const entries: [string, ProviderCredential][] = [];
+  let inspected = 0;
+  for (const rawKey in value) {
+    if (!Object.hasOwn(value, rawKey)) continue;
+    inspected += 1;
+    if (inspected > SETTINGS_LIMITS.providerCredentials) break;
+    if (!isKnownProvider(rawKey)) continue;
+    const raw = value[rawKey];
+    if (!isRecord(raw)) continue;
+    const apiKey =
+      readString(raw.apiKey, SETTINGS_LIMITS.apiKeyLength, { allowEmpty: true }) ?? '';
+    const baseUrl = readHttpUrl(raw.baseUrl, SETTINGS_LIMITS.baseUrlLength, true) ?? '';
+    entries.push([rawKey, { apiKey, baseUrl }]);
+  }
+  return Object.fromEntries(entries);
 }
 
 function decodeModelCapabilities(
@@ -205,6 +274,8 @@ export function decodeSettings(
     return {
       ...fallback,
       modelCapabilities: cloneCapabilities(fallback.modelCapabilities),
+      modelPool: cloneModelPool(fallback.modelPool),
+      providerCredentials: cloneProviderCredentials(fallback.providerCredentials),
       mcpServers: cloneMcpServers(fallback.mcpServers),
     };
   }
@@ -231,7 +302,7 @@ export function decodeSettings(
       ? (customBaseUrl ?? fallback.baseUrl)
       : (providerPreset?.baseUrl ?? fallback.baseUrl);
 
-  return {
+  const settings: ExtensionSettings = {
     provider,
     // 兼容旧字段：新字段只有在非空且有效时优先；空值沿用旧版迁移语义。
     apiKey: (apiKey ? apiKey : legacyApiKey) ?? apiKey ?? fallback.apiKey,
@@ -240,6 +311,11 @@ export function decodeSettings(
       readString(value.model, SETTINGS_LIMITS.modelLength, {
         allowEmpty: true,
       }) ?? fallback.model,
+    modelPool: decodeModelPool(value.modelPool, fallback.modelPool),
+    providerCredentials: decodeProviderCredentials(
+      value.providerCredentials,
+      fallback.providerCredentials,
+    ),
     maxContentLength: readContentLength(
       value.maxContentLength,
       fallback.maxContentLength,
@@ -258,6 +334,22 @@ export function decodeSettings(
         ? value.mcpVerboseLog
         : fallback.mcpVerboseLog,
   };
+
+  // 旧数据没有 modelPool；保证当前生效模型始终出现在池中。
+  const activeModel = settings.model.trim();
+  if (activeModel && isKnownProvider(settings.provider)) {
+    const models = settings.modelPool[settings.provider] ?? [];
+    if (!models.includes(activeModel)) {
+      settings.modelPool = {
+        ...settings.modelPool,
+        [settings.provider]: [activeModel, ...models].slice(
+          0,
+          SETTINGS_LIMITS.modelPoolModels,
+        ),
+      };
+    }
+  }
+  return settings;
 }
 
 export async function getSettings(): Promise<ExtensionSettings> {

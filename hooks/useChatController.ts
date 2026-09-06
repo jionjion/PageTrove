@@ -25,6 +25,7 @@ import { getSettings, saveSettings } from '@/services/settings-store';
 import {
   type ExtensionSettings,
   getModelCapabilities,
+  modelCapabilityKey,
   PROVIDERS,
 } from '@/types/settings';
 import { AppError, toErrorMessage } from '@/utils/errors';
@@ -34,6 +35,13 @@ import { IDLE_PHASE, sendPhaseReducer } from '@/services/chat-send-phase';
 
 /** 空活动列表常量,避免 idle 态每次渲染新数组导致 effect 依赖抖动。 */
 const EMPTY_ACTIVITIES: ChatToolActivity[] = [];
+
+/** 模型下拉框的两级选项：一级为供应商分组（不可选中），二级为具体模型。 */
+export interface ModelOptionGroup {
+  label: string;
+  title: string;
+  options: { value: string; label: string }[];
+}
 
 /** App 头部图标下发的指令：开启新会话 / 打开历史会话 / 开启多来源探究会话。 */
 export type ChatCommand =
@@ -126,13 +134,41 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
   } = useChatAutoScroll();
 
   const [chatSettings, setChatSettings] = useState<ExtensionSettings>();
-  const [modelOptions, setModelOptions] = useState<string[]>([]);
+  const [modelOptions, setModelOptions] = useState<ModelOptionGroup[]>([]);
 
   const applySettings = (settings: ExtensionSettings) => {
     setChatSettings(settings);
-    const presetModels =
-      PROVIDERS.find((provider) => provider.id === settings.provider)?.models ?? [];
-    setModelOptions([...new Set([settings.model, ...presetModels])].filter(Boolean));
+    const groups: ModelOptionGroup[] = [];
+    for (const preset of PROVIDERS) {
+      const models = settings.modelPool[preset.id] ?? [];
+      if (models.length === 0) continue;
+      groups.push({
+        label: preset.label,
+        title: preset.label,
+        options: models.map((model) => ({
+          value: modelCapabilityKey(preset.id, model),
+          label: model,
+        })),
+      });
+    }
+    // 当前生效模型不在池中时（异常数据）也保证可见：归入对应供应商分组。
+    const activeKey = modelCapabilityKey(settings.provider, settings.model);
+    if (
+      settings.model &&
+      !groups.some((group) => group.options.some((option) => option.value === activeKey))
+    ) {
+      const providerLabel =
+        PROVIDERS.find((preset) => preset.id === settings.provider)?.label ??
+        settings.provider;
+      const option = { value: activeKey, label: settings.model };
+      const group = groups.find((entry) => entry.label === providerLabel);
+      if (group) {
+        group.options.unshift(option);
+      } else {
+        groups.unshift({ label: providerLabel, title: providerLabel, options: [option] });
+      }
+    }
+    setModelOptions(groups);
   };
 
   useEffect(() => {
@@ -195,13 +231,43 @@ export function useChatController({ command, nonce, onTitleChange }: Options) {
     ? getModelCapabilities(chatSettings)
     : { vision: false, tools: false };
 
-  const handleModelChange = (model: string) => {
+  const handleModelChange = (key: string) => {
+    const current = chatSettings;
+    if (!current) return;
+    // key 为 provider::model；provider id 不含冒号，取第一个分隔符。
+    const separator = key.indexOf('::');
+    if (separator < 0) return;
+    const provider = key.slice(0, separator);
+    const model = key.slice(separator + 2);
+    if (!model) return;
+
+    const patch: Partial<ExtensionSettings> =
+      provider === current.provider
+        ? { model }
+        : {
+            provider,
+            model,
+            // 切换供应商时回填其凭据；显式带上 apiKey，避免 endpoint 变更时被清空。
+            baseUrl:
+              current.providerCredentials[provider]?.baseUrl ||
+              (PROVIDERS.find((preset) => preset.id === provider)?.baseUrl ?? ''),
+            apiKey: current.providerCredentials[provider]?.apiKey ?? '',
+            // 当前供应商的凭据存回池中，便于以后切回。
+            providerCredentials: {
+              ...current.providerCredentials,
+              [current.provider]: {
+                apiKey: current.apiKey,
+                baseUrl: current.baseUrl,
+              },
+            },
+          };
+
     const changeId = crypto.randomUUID();
     // 废弃所有已经在读的 storage refresh，防止旧模型覆盖新选择。
     settingsRefreshIdRef.current += 1;
     modelChangeIdRef.current = changeId;
-    setChatSettings((current) => (current ? { ...current, model } : current));
-    const save = modelSaveQueueRef.current.then(() => saveSettings({ model }));
+    setChatSettings((prev) => (prev ? { ...prev, ...patch } : prev));
+    const save = modelSaveQueueRef.current.then(() => saveSettings(patch));
     modelSaveQueueRef.current = save.then(
       () => undefined,
       () => undefined,

@@ -8,6 +8,7 @@ import { StreamingBubble } from '@/components/chat/StreamingBubble';
 import { ToolActivityList } from '@/components/chat/ToolActivityList';
 import { ToolApprovalCard } from '@/components/chat/ToolApprovalCard';
 import { useChatController } from '@/hooks/useChatController';
+import { modelCapabilityKey } from '@/types/settings';
 
 import type { ChatCommand } from '@/hooks/useChatController';
 
@@ -187,7 +188,11 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
         picking={picking}
         capturing={capturing}
         visionEnabled={capabilities.vision}
-        model={chatSettings?.model}
+        model={
+          chatSettings?.model
+            ? modelCapabilityKey(chatSettings.provider, chatSettings.model)
+            : undefined
+        }
         modelOptions={modelOptions}
         awayFromBottom={awayFromBottom}
         onInputChange={setInput}

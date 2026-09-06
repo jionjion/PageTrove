@@ -60,8 +60,12 @@ const CHAT_LIMITS = {
 
 type SafeMcpServerSettings = Omit<McpServerSettings, 'bearerToken' | 'headersJson'>;
 
-export type BackupSettings = Omit<ExtensionSettings, 'apiKey' | 'mcpServers'> & {
+export type BackupSettings = Omit<
+  ExtensionSettings,
+  'apiKey' | 'mcpServers' | 'providerCredentials'
+> & {
   apiKey: '';
+  providerCredentials: Record<string, { apiKey: ''; baseUrl: string }>;
   mcpServers: SafeMcpServerSettings[];
 };
 
@@ -137,6 +141,12 @@ export function sanitizeSettingsForBackup(settings: ExtensionSettings): BackupSe
   return {
     ...settings,
     apiKey: '',
+    providerCredentials: Object.fromEntries(
+      Object.entries(settings.providerCredentials).map(([provider, credential]) => [
+        provider,
+        { apiKey: '' as const, baseUrl: credential.baseUrl },
+      ]),
+    ),
     mcpServers: settings.mcpServers.map(
       ({ bearerToken: _bearerToken, headersJson: _headersJson, ...server }) => server,
     ),
@@ -767,6 +777,10 @@ function buildSettingsRestorePlan(
   const patch: Partial<ExtensionSettings> = { provider, baseUrl };
   const model = readOptionalString(raw.model, 200);
   if (model) patch.model = model;
+  // modelPool 不含秘密，可安全恢复；具体校验交给 decodeSettings。
+  if (isRecord(raw.modelPool)) {
+    patch.modelPool = raw.modelPool as ExtensionSettings['modelPool'];
+  }
   if (typeof raw.maxContentLength === 'number' && Number.isFinite(raw.maxContentLength)) {
     patch.maxContentLength = Math.min(
       200_000,

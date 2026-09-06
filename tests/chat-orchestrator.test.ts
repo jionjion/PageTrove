@@ -25,6 +25,8 @@ const settings: ExtensionSettings = {
   apiKey: 'test-only-key',
   baseUrl: 'https://ai.example.com/v1',
   model: 'tool-model',
+  modelPool: { custom: ['tool-model'] },
+  providerCredentials: {},
   maxContentLength: 12_000,
   includeSelectedText: true,
   modelCapabilities: {

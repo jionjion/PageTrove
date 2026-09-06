@@ -48,6 +48,50 @@ describe('getSettings', () => {
     expect(settings.maxContentLength).toBe(DEFAULT_SETTINGS.maxContentLength);
   });
 
+  it('modelPool 只保留合法供应商键与非空模型名，并去重', async () => {
+    await browser.storage.local.set({
+      [SETTINGS_KEY]: {
+        provider: 'deepseek',
+        model: 'deepseek-v4-pro',
+        modelPool: {
+          deepseek: ['deepseek-v4-pro', 'deepseek-v4-pro', '', 42, 'deepseek-v4-flash'],
+          'unknown-provider': ['x'],
+          qwen: 'not-array',
+        },
+      },
+    });
+    const settings = await getSettings();
+    expect(settings.modelPool).toEqual({
+      deepseek: ['deepseek-v4-pro', 'deepseek-v4-flash'],
+    });
+  });
+
+  it('旧数据缺失 modelPool 时把当前生效模型补入池中', async () => {
+    await browser.storage.local.set({
+      [SETTINGS_KEY]: { provider: 'kimi', model: 'kimi-k3' },
+    });
+    const settings = await getSettings();
+    expect(settings.modelPool).toEqual({ kimi: ['kimi-k3'] });
+  });
+
+  it('providerCredentials 只接受合法供应商与 http(s) baseUrl', async () => {
+    await browser.storage.local.set({
+      [SETTINGS_KEY]: {
+        providerCredentials: {
+          deepseek: { apiKey: 'sk-a', baseUrl: 'https://api.deepseek.com' },
+          kimi: { apiKey: 'sk-b', baseUrl: 'ftp://bad' },
+          'unknown-provider': { apiKey: 'sk-c', baseUrl: 'https://x.example.com' },
+          zhipu: null,
+        },
+      },
+    });
+    const settings = await getSettings();
+    expect(settings.providerCredentials).toEqual({
+      deepseek: { apiKey: 'sk-a', baseUrl: 'https://api.deepseek.com' },
+      kimi: { apiKey: 'sk-b', baseUrl: '' },
+    });
+  });
+
   it('非法 modelCapabilities（数组/非对象值）回退为空对象', async () => {
     await browser.storage.local.set({
       [SETTINGS_KEY]: { modelCapabilities: ['bad'] },

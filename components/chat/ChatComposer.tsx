@@ -6,6 +6,7 @@ import {
   SendOutlined,
   StopOutlined,
 } from '@ant-design/icons';
+import type { ModelOptionGroup } from '@/hooks/useChatController';
 
 interface Props {
   input: string;
@@ -13,8 +14,10 @@ interface Props {
   picking: boolean;
   capturing: boolean;
   visionEnabled: boolean;
+  /** 当前生效模型的 provider::model 键。 */
   model?: string;
-  modelOptions: string[];
+  /** 按供应商分组的两级模型选项。 */
+  modelOptions: ModelOptionGroup[];
   awayFromBottom: boolean;
   onInputChange: (value: string) => void;
   onSend: () => void;
@@ -65,11 +68,11 @@ export function ChatComposer({
             size="small"
             variant="borderless"
             title="选择模型"
-            style={{ maxWidth: 150 }}
+            style={{ minWidth:120, maxWidth: 250}}
             popupMatchSelectWidth={false}
             value={model}
             onChange={onModelChange}
-            options={modelOptions.map((option) => ({ value: option, label: option }))}
+            options={modelOptions}
           />
           <div className="chat-input-actions">
             {awayFromBottom && (
