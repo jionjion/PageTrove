@@ -60,6 +60,7 @@ export function ChatComposer({
       <div className="chat-input-card">
         <Input.TextArea
           variant="borderless"
+          aria-label="输入问题"
           autoSize={{ minRows: 3, maxRows: 8 }}
           placeholder="输入问题…"
           value={input}
@@ -77,7 +78,8 @@ export function ChatComposer({
             size="small"
             variant="borderless"
             title="选择模型"
-            style={{ minWidth:120, maxWidth: 250}}
+            aria-label="选择模型"
+            style={{ minWidth: 120, maxWidth: 250 }}
             popupMatchSelectWidth={false}
             value={model}
             onChange={onModelChange}
@@ -88,6 +90,7 @@ export function ChatComposer({
               <Tooltip title="回到底部">
                 <Button
                   size="small"
+                  aria-label="回到底部"
                   icon={<ArrowDownOutlined />}
                   onClick={onScrollToBottom}
                 />
@@ -103,6 +106,8 @@ export function ChatComposer({
               >
                 <Button
                   size="small"
+                  aria-label="下次提问重新读取当前页面"
+                  aria-pressed={refreshPagePending}
                   type={refreshPagePending ? 'primary' : 'default'}
                   ghost={refreshPagePending}
                   icon={<ReloadOutlined />}
@@ -112,11 +117,18 @@ export function ChatComposer({
               </Tooltip>
             )}
             {busy ? (
-              <Button size="small" danger icon={<StopOutlined />} onClick={onStop} />
+              <Button
+                size="small"
+                danger
+                aria-label="停止生成"
+                icon={<StopOutlined />}
+                onClick={onStop}
+              />
             ) : (
               <Tooltip title="发送">
                 <Button
                   size="small"
+                  aria-label="发送"
                   type="primary"
                   icon={<SendOutlined />}
                   disabled={!input.trim()}
@@ -127,17 +139,17 @@ export function ChatComposer({
             <Tooltip title="选取页面元素">
               <Button
                 size="small"
+                aria-label="选取页面元素"
                 icon={<AimOutlined />}
                 loading={picking}
                 disabled={busy}
                 onClick={onPick}
               />
             </Tooltip>
-            <Tooltip
-              title={visionEnabled ? '框选页面截图' : '当前模型未启用图片输入'}
-            >
+            <Tooltip title={visionEnabled ? '框选页面截图' : '当前模型未启用图片输入'}>
               <Button
                 size="small"
+                aria-label="框选页面截图"
                 icon={<ScissorOutlined />}
                 loading={capturing}
                 disabled={busy || !visionEnabled}

@@ -16,19 +16,106 @@ body {
 }
 
 .app-header {
+  padding: 8px 16px 0;
+  background: #fff;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.app-brand-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
+  min-height: 36px;
+}
+
+.app-brand {
+  color: #262626;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.app-brand span {
+  margin-left: 4px;
+  color: #8c8c8c;
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .app-header-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+.app-nav {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.app-nav-item {
+  position: relative;
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 2px;
+  border: 0;
+  background: transparent;
+  color: #595959;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.app-nav-item[aria-current='page'] {
+  color: #0958d9;
+  font-weight: 500;
+}
+
+.app-nav-item[aria-current='page']::after {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  background: #1677ff;
+  content: '';
+}
+
+.app-nav-item:hover {
+  background: #fafafa;
+}
+
+.app-header-actions .ant-btn:focus-visible,
+.app-nav-item:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: -2px;
+}
+
+.chat-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 4px 12px;
+  font-size: 12px;
+}
+
+.chat-context-label {
+  flex-shrink: 0;
+  color: #737373;
+}
+
+.chat-context-title {
+  overflow: hidden;
+  color: #262626;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 视图主体：占满剩余高度，内容区滚动 */
@@ -162,16 +249,87 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 300px;
+  min-height: 0;
 }
 
 .chat-messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding-bottom: 8px;
+}
+
+.chat-welcome {
+  width: 100%;
+  max-width: 440px;
+  margin: auto;
+  padding: 24px 8px;
+}
+
+.chat-welcome-mark {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid #d6e4ff;
+  border-radius: 8px;
+  background: #f0f5ff;
+  color: #0958d9;
+  font-size: 20px;
+}
+
+.chat-welcome-copy h1 {
+  margin: 16px 0 4px;
+  color: #262626;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.chat-welcome-copy p {
+  margin: 0;
+  color: #595959;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.chat-welcome-prompts {
+  display: grid;
+  gap: 4px;
+  margin-top: 24px;
+}
+
+.chat-welcome-label {
+  margin-bottom: 4px;
+  color: #737373;
+  font-size: 12px;
+}
+
+.chat-welcome-prompts button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  background: #fff;
+  color: #404040;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-welcome-prompts button:hover {
+  border-color: #91caff;
+  color: #0958d9;
+}
+
+.chat-welcome-prompts button:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
 }
 
 /* 统一空状态：绝对定位铺满 .app-body，
@@ -184,7 +342,7 @@ body {
   flex-direction: column;
   align-items: center;
   padding: 24px 16px;
-  color: rgba(0, 0, 0, 0.3);
+  color: #8c8c8c;
   text-align: center;
   pointer-events: none;
 }
@@ -206,13 +364,15 @@ body {
 
 .empty-state-title {
   font-size: 14px;
-  color: rgba(0, 0, 0, 0.45);
+  color: #262626;
+  font-weight: 500;
   margin-bottom: 4px;
 }
 
 .empty-state-desc {
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+  line-height: 20px;
+  color: #595959;
 }
 
 /* 一条消息：时间在气泡上方，复制按钮在气泡下方 */
@@ -414,8 +574,8 @@ body {
   padding: 0 5px;
   border-radius: 8px;
   background: #f0f5ff;
-  color: #1677ff;
-  font-size: 10px;
+  color: #0958d9;
+  font-size: 11px;
   line-height: 16px;
   vertical-align: 2px;
   text-decoration: none;
@@ -464,8 +624,8 @@ body {
   background: #fff;
   border: 1px solid #e5e5e5;
   border-radius: 10px;
-  padding: 6px 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  padding: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   transition:
     border-color 0.2s,
     box-shadow 0.2s;
@@ -488,17 +648,24 @@ body {
 
 .chat-input-footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  padding-top: 6px;
+  padding-top: 8px;
   border-top: 1px solid #f5f5f5;
 }
 
 .chat-input-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.chat-input-actions .ant-btn:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
 }
 /* MCP 设置 */
 .mcp-server {
@@ -757,7 +924,7 @@ body {
 
 .chat-source-citation {
   flex-shrink: 0;
-  color: #bbb;
+  color: #0958d9;
   font-size: 11px;
 }
 
@@ -779,60 +946,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* ---------- 探究快捷问题 ---------- */
-
-.scope-quick-questions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin: auto;
-  padding: 24px 0;
-  color: rgb(0 0 0 / 45%);
-  font-size: 12px;
-  line-height: 2;
-  text-align: center;
-}
-
-.scope-quick-questions .empty-state-icon {
-  color: rgb(0 0 0 / 25%);
-}
-
-/* 分割线：--- · --- */
-.scope-quick-divider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 200px;
-  margin: 0 auto;
-}
-
-.scope-quick-divider-line {
-  flex: 1;
-  height: 1px;
-  background: rgb(0 0 0 / 10%);
-}
-
-.scope-quick-divider-dot {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: rgb(0 0 0 / 25%);
-}
-
-.scope-quick-question {
-  padding: 2px 12px;
-  border: 1px solid #f0f0f0;
-  border-radius: 14px;
-  color: rgb(0 0 0 / 45%);
-  cursor: pointer;
-}
-
-.scope-quick-question:hover {
-  border-color: #d9d9d9;
-  color: rgb(0 0 0 / 65%);
 }
 
 /* ---------- 探究标签页选择页 ---------- */

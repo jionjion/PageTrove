@@ -29,6 +29,10 @@ dist/
 coverage/
 *.log
 
+# Local tooling
+.playwright-cli/
+/output/
+
 .codegraph
 .cursor
 /docs

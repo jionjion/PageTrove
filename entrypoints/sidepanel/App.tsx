@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
-import { Button, Tooltip, Typography } from 'antd';
+import { Button, Tooltip } from 'antd';
 import {
   FileSearchOutlined,
   FolderOpenOutlined,
   HistoryOutlined,
+  MessageOutlined,
   PlusOutlined,
   SettingOutlined,
   StarOutlined,
@@ -71,76 +72,62 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** 点击图标切换视图；再点一次已激活的图标则回到对话 */
-  const toggleView = (target: View) => {
-    setView((v) => (v === target ? 'chat' : target));
-  };
-
-  const iconStyle = (target: View) =>
-    view === target ? { color: '#1677ff' } : undefined;
+  const navigation = [
+    { key: 'chat', label: '对话', icon: <MessageOutlined /> },
+    { key: 'current', label: '收录', icon: <StarOutlined /> },
+    { key: 'clips', label: '收藏', icon: <FolderOpenOutlined /> },
+    { key: 'research', label: '探究', icon: <FileSearchOutlined /> },
+    { key: 'history', label: '历史', icon: <HistoryOutlined /> },
+  ] as const;
 
   return (
     <div className="app">
       <header className="app-header">
-        <Typography.Title
-          level={5}
-          style={{ margin: 0, flex: 1, minWidth: 0 }}
-          ellipsis={{ tooltip: chatTitle }}
-        >
-          {chatTitle}
-        </Typography.Title>
-        <div className="app-header-actions">
-          <Tooltip title="新对话（针对当前网页）">
-            <Button
-              type="text"
-              icon={<PlusOutlined />}
-              onClick={() => dispatchChat({ kind: 'new' })}
-            />
-          </Tooltip>
-          <Tooltip title="历史对话">
-            <Button
-              type="text"
-              style={iconStyle('history')}
-              icon={<HistoryOutlined />}
-              onClick={() => toggleView('history')}
-            />
-          </Tooltip>
-          <Tooltip title="收藏当前网页">
-            <Button
-              type="text"
-              style={iconStyle('current')}
-              icon={<StarOutlined />}
-              onClick={() => toggleView('current')}
-            />
-          </Tooltip>
-          <Tooltip title="我的收藏">
-            <Button
-              type="text"
-              style={iconStyle('clips')}
-              icon={<FolderOpenOutlined />}
-              onClick={() => toggleView('clips')}
-            />
-          </Tooltip>
-          <Tooltip title="探究多个网页">
-            <Button
-              type="text"
-              style={iconStyle('research')}
-              icon={<FileSearchOutlined />}
-              onClick={() => toggleView('research')}
-            />
-          </Tooltip>
-          <Tooltip title="设置">
-            <Button
-              type="text"
-              icon={<SettingOutlined />}
-              onClick={() => void browser.runtime.openOptionsPage()}
-            />
-          </Tooltip>
+        <div className="app-brand-row">
+          <div className="app-brand">
+            拾页 <span>PageTrove</span>
+          </div>
+          <div className="app-header-actions">
+            <Tooltip title="新对话（针对当前网页）">
+              <Button
+                type="text"
+                aria-label="新对话（针对当前网页）"
+                icon={<PlusOutlined />}
+                onClick={() => dispatchChat({ kind: 'new' })}
+              />
+            </Tooltip>
+            <Tooltip title="设置">
+              <Button
+                type="text"
+                aria-label="设置"
+                icon={<SettingOutlined />}
+                onClick={() => void browser.runtime.openOptionsPage()}
+              />
+            </Tooltip>
+          </div>
         </div>
+        <nav className="app-nav" aria-label="主要导航">
+          {navigation.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="app-nav-item"
+              aria-current={view === item.key ? 'page' : undefined}
+              onClick={() => setView(item.key)}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
       </header>
 
       {/* 各视图保持挂载以保留状态，仅切换显示 */}
       <div className="app-body" style={view === 'chat' ? undefined : { display: 'none' }}>
+        <div className="chat-context" title={chatTitle}>
+          <span className="chat-context-label">当前对话</span>
+          <span className="chat-context-title">{chatTitle}</span>
+        </div>
         <ChatView command={chatCommand} nonce={chatNonce} onTitleChange={setChatTitle} />
       </div>
       <div

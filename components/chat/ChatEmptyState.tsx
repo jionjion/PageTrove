@@ -1,5 +1,4 @@
 import { ReadOutlined } from '@ant-design/icons';
-import { EmptyState } from '@/components/EmptyState';
 
 /** 空会话占位:scope 会话展示快捷问题,普通会话展示品牌提示。 */
 export function ChatEmptyState({
@@ -9,34 +8,31 @@ export function ChatEmptyState({
   hasScope: boolean;
   onPreset: (text: string) => void;
 }) {
-  if (!hasScope) {
-    return (
-      <EmptyState
-        icon={<ReadOutlined />}
-        title="拾取互联网中有价值的碎片"
-        description="收藏网页后，可以与 AI 对话分析"
-      />
-    );
-  }
+  const presets = hasScope
+    ? ['比较这些页面的核心差异', '整理成一份结构化报告']
+    : ['概括这篇内容', '列出核心观点', '有哪些值得注意的细节'];
   return (
-    <div className="scope-quick-questions">
-      <div className="empty-state-icon"><ReadOutlined /></div>
-      <div className="empty-state-title">已就绪，可针对所选来源提问</div>
-      <div className="empty-state-desc">选择下方快捷问题或直接输入</div>
-      <div className="scope-quick-divider">
-        <span className="scope-quick-divider-line" />
-        <span className="scope-quick-divider-dot" />
-        <span className="scope-quick-divider-line" />
+    <div className="chat-welcome">
+      <div className="chat-welcome-mark" aria-hidden="true">
+        <ReadOutlined />
       </div>
-      {['比较这些页面的核心差异', '整理成一份结构化报告'].map((preset) => (
-        <span
-          key={preset}
-          className="scope-quick-question"
-          onClick={() => onPreset(preset)}
-        >
-          {preset}
-        </span>
-      ))}
+      <div className="chat-welcome-copy">
+        <h1>{hasScope ? '从这些来源开始探究' : '从阅读到理解'}</h1>
+        <p>
+          {hasScope
+            ? '围绕所选来源提问，比较和整理内容'
+            : '围绕网页内容提问，整理值得保留的想法'}
+        </p>
+      </div>
+      <div className="chat-welcome-prompts">
+        <div className="chat-welcome-label">试着问</div>
+        {presets.map((preset) => (
+          <button key={preset} type="button" onClick={() => onPreset(preset)}>
+            <span>{preset}</span>
+            <span aria-hidden="true">↗</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
