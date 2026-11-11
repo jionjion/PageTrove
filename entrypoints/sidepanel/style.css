@@ -144,12 +144,17 @@ body {
 }
 
 .options-page {
+  display: flex;
+  flex-direction: column;
+  /* 设置页至少占满一屏，右侧内容区不再随内容高度收缩 */
+  min-height: 100vh;
   max-width: 900px;
   margin: 0 auto;
   padding: 0 16px 32px;
 }
 
 .options-body {
+  flex: 1;
   display: flex;
   align-items: stretch;
   background: #fff;
