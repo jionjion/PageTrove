@@ -104,6 +104,14 @@ export function modelCapabilityKey(provider: string, model: string): string {
   return `${provider}::${model}`;
 }
 
+/** 内置模型的能力基线；用于判断某个模型是否已有可信默认值。 */
+export function getBuiltinModelCapabilities(
+  provider: string,
+  model: string,
+): ModelCapabilities | undefined {
+  return BUILTIN_MODEL_CAPABILITIES[modelCapabilityKey(provider, model)];
+}
+
 export function getModelCapabilities(
   settings: Pick<ExtensionSettings, 'provider' | 'model' | 'modelCapabilities'>,
   model = settings.model,
@@ -113,6 +121,38 @@ export function getModelCapabilities(
     settings.modelCapabilities[key] ??
     BUILTIN_MODEL_CAPABILITIES[key] ?? { vision: false, tools: false }
   );
+}
+
+/**
+ * 把在线模型列表返回的能力提示并入设置。
+ * 只补全当前已配置、且没有用户配置或内置基线的模型；返回 undefined 表示无需更新。
+ */
+export function mergeModelCapabilityHints(
+  settings: Pick<
+    ExtensionSettings,
+    'provider' | 'model' | 'modelPool' | 'modelCapabilities'
+  >,
+  hints: Record<string, ModelCapabilities>,
+): Record<string, ModelCapabilities> | undefined {
+  const models = new Set([
+    settings.model,
+    ...(settings.modelPool[settings.provider] ?? []),
+  ]);
+  let next: Record<string, ModelCapabilities> | undefined;
+
+  for (const model of models) {
+    if (!model) continue;
+    const hint = hints[model];
+    if (!hint) continue;
+    if (getBuiltinModelCapabilities(settings.provider, model)) continue;
+
+    const key = modelCapabilityKey(settings.provider, model);
+    if (settings.modelCapabilities[key]) continue;
+
+    next ??= { ...settings.modelCapabilities };
+    next[key] = { ...hint };
+  }
+  return next;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {

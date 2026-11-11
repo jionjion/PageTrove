@@ -1,4 +1,4 @@
-import type { ExtensionSettings } from '@/types/settings';
+import type { ExtensionSettings, ModelCapabilities } from '@/types/settings';
 import { AppError } from '@/utils/errors';
 import type { OpenAIMessage, OpenAITool, RoundResult } from '@/services/ai/provider';
 import { createSseAccumulator } from '@/services/ai/sse-accumulator';
@@ -130,8 +130,142 @@ export const MODEL_LIST_LIMITS = {
 const NON_CHAT_MODEL =
   /(?:embedding|embed-|rerank|tts|asr|whisper|speech|transcri|moderation|audio|image-generation|video-generation|wanx|cosyvoice|paraformer)/i;
 
+export interface ModelListEntry {
+  id: string;
+  /** 供应商返回或按模型名推断的能力，用于首次配置时自动勾选。 */
+  capabilities: ModelCapabilities;
+}
+
+/** 支持视觉输入的模型族；仅在响应没有显式能力字段时作为兜底。 */
+const VISION_MODEL_PATTERN =
+  /(?:^|[-_.])(?:vl|vision|omni)(?:\d+)?(?:[-_.]|$)|(?:^|[-_./])\d+(?:\.\d+)*v(?:[-_.]|$)|gpt-4o|gpt-4\.1|gpt-5|claude|gemini|pixtral|llava|internvl|minicpm-v|kimi-latest/i;
+
+/** 支持工具调用的模型族；未识别的自定义模型保持关闭，避免误发 tools 字段。 */
+const TOOL_MODEL_PATTERN =
+  /qwen|deepseek|glm|moonshot|kimi|gpt-|chatgpt|claude|gemini|mistral|mixtral|llama|grok|command|ernie|doubao|hunyuan|spark|baichuan|yi-|step-|internlm|minimax|abab/i;
+const NO_TOOL_MODEL_PATTERN = /deepseek-reasoner|glm-z\d|qwq|o1-mini|o1-preview|o3-mini/i;
+
+function readExplicitBoolean(
+  record: Record<string, unknown>,
+  keys: readonly string[],
+): boolean | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'boolean') return value;
+  }
+  return undefined;
+}
+
+/** 收集 `modalities` / `architecture.input_modalities` 等字段中的模态描述。 */
+function collectModalityStrings(entry: Record<string, unknown>): string[] {
+  const values: string[] = [];
+  const push = (value: unknown) => {
+    if (typeof value === 'string') {
+      values.push(value);
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        if (typeof item === 'string') values.push(item);
+      }
+    } else if (isRecord(value)) {
+      for (const key of ['input', 'inputs', 'input_modalities']) push(value[key]);
+    }
+  };
+
+  push(entry.modalities);
+  push(entry.input_modalities);
+  if (isRecord(entry.architecture)) {
+    push(entry.architecture.modality);
+    push(entry.architecture.input_modalities);
+  }
+  return values;
+}
+
+/** 解析供应商显式声明的能力；字段缺失时返回 undefined，交由模型名兜底。 */
+function readExplicitCapabilities(
+  entry: Record<string, unknown>,
+): Partial<ModelCapabilities> {
+  const capabilities = isRecord(entry.capabilities) ? entry.capabilities : undefined;
+  const capabilityFlags = Array.isArray(entry.capabilities)
+    ? entry.capabilities
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.toLowerCase())
+    : undefined;
+  const features = Array.isArray(entry.features)
+    ? entry.features
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.toLowerCase())
+    : undefined;
+  const parameters = Array.isArray(entry.supported_parameters)
+    ? entry.supported_parameters.filter(
+        (item): item is string => typeof item === 'string',
+      )
+    : undefined;
+
+  const modalityStrings = collectModalityStrings(entry);
+  const visionFromModalities =
+    modalityStrings.length > 0
+      ? modalityStrings.some((value) => /image|vision|multimodal|omni/i.test(value))
+      : undefined;
+
+  const vision =
+    (capabilities &&
+      readExplicitBoolean(capabilities, [
+        'vision',
+        'image',
+        'image_input',
+        'imageInput',
+        'multimodal',
+        'supports_vision',
+      ])) ??
+    readExplicitBoolean(entry, [
+      'supports_vision',
+      'vision',
+      'supports_image_input',
+      'multimodal',
+    ]) ??
+    capabilityFlags?.some((flag) =>
+      /^(?:vision|image|image_input|multimodal)$/.test(flag),
+    ) ??
+    features?.some((feature) => /vision|image/.test(feature)) ??
+    visionFromModalities;
+
+  const tools =
+    (capabilities &&
+      readExplicitBoolean(capabilities, [
+        'tools',
+        'tool_calling',
+        'toolCalls',
+        'function_calling',
+        'functionCalls',
+        'supports_tools',
+      ])) ??
+    readExplicitBoolean(entry, [
+      'supports_tools',
+      'supports_function_calling',
+      'tools',
+      'function_calling',
+      'tool_calling',
+    ]) ??
+    capabilityFlags?.some((flag) =>
+      /^(?:tools|tool_calling|function_calling|function_calls)$/.test(flag),
+    ) ??
+    features?.some((feature) => /tool|function/.test(feature)) ??
+    parameters?.some((name) =>
+      /^(?:tools?|tool_choice|functions?|function_call)$/i.test(name),
+    );
+
+  return { vision, tools };
+}
+
+function inferCapabilitiesFromId(id: string): ModelCapabilities {
+  return {
+    vision: VISION_MODEL_PATTERN.test(id),
+    tools: TOOL_MODEL_PATTERN.test(id) && !NO_TOOL_MODEL_PATTERN.test(id),
+  };
+}
+
 /** 兼容 `{ data: [...] }`、`{ models: [...] }` 与裸数组三种常见返回结构。 */
-function readModelIds(body: unknown): string[] {
+function readModelEntries(body: unknown): ModelListEntry[] {
   const entries = Array.isArray(body)
     ? body
     : isRecord(body)
@@ -143,33 +277,46 @@ function readModelIds(body: unknown): string[] {
       : undefined;
   if (!entries) throw invalidResponse('模型列表返回格式异常');
 
-  const ids: string[] = [];
+  const result: ModelListEntry[] = [];
+  const seen = new Set<string>();
   for (const entry of entries.slice(0, MODEL_LIST_LIMITS.inspected)) {
+    const record = isRecord(entry) ? entry : undefined;
     const rawId =
       typeof entry === 'string'
         ? entry
-        : isRecord(entry) && typeof entry.id === 'string'
-          ? entry.id
+        : record && typeof record.id === 'string'
+          ? record.id
           : undefined;
     if (rawId === undefined) continue;
     const id = rawId.trim();
     if (!id || id.length > MODEL_LIST_LIMITS.idLength) continue;
-    if (NON_CHAT_MODEL.test(id)) continue;
-    ids.push(id);
-    if (ids.length >= MODEL_LIST_LIMITS.models) break;
+    if (NON_CHAT_MODEL.test(id) || seen.has(id)) continue;
+
+    seen.add(id);
+    const inferred = inferCapabilitiesFromId(id);
+    const explicit = record ? readExplicitCapabilities(record) : {};
+    result.push({
+      id,
+      capabilities: {
+        vision: explicit.vision ?? inferred.vision,
+        tools: explicit.tools ?? inferred.tools,
+      },
+    });
+    if (result.length >= MODEL_LIST_LIMITS.models) break;
   }
-  return [...new Set(ids)];
+  return result;
 }
 
 /**
- * GET /models：读取供应商当前可用的模型 ID（OpenAI 兼容端点）。
+ * GET /models：读取供应商当前可用的模型（OpenAI 兼容端点）。
+ * 标准 OpenAI 响应不含能力字段，因此优先解析扩展字段，缺失时按模型名推断。
  * 只负责协议与边界校验；合并选项和错误提示由调用方处理。
  */
 export async function requestModelList(
   settings: Pick<ExtensionSettings, 'baseUrl' | 'apiKey'>,
   timeoutMs = 15_000,
   signal?: AbortSignal,
-): Promise<string[]> {
+): Promise<ModelListEntry[]> {
   const controller = new AbortController();
   const unlink = linkAbortSignal(controller, signal);
   const timer = setTimeout(
@@ -201,7 +348,7 @@ export async function requestModelList(
     } catch {
       throw invalidResponse('模型列表返回了无效 JSON');
     }
-    return readModelIds(body);
+    return readModelEntries(body);
   } catch (error) {
     rethrowRequestError(error, controller.signal);
   } finally {

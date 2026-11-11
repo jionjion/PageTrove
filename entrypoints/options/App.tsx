@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   App as AntApp,
@@ -25,10 +25,13 @@ import {
 import {
   DEFAULT_SETTINGS,
   type ExtensionSettings,
+  type ModelCapabilities,
   getModelCapabilities,
+  mergeModelCapabilityHints,
   modelCapabilityKey,
   PROVIDERS,
 } from '@/types/settings';
+import type { ModelListEntry } from '@/services/ai/openai-compatible-provider';
 import { getSettings } from '@/services/settings-store';
 import { getClipsByIds, queryClips } from '@/services/clip-store';
 import { downloadClipsArchive } from '@/services/obsidian-export';
@@ -93,15 +96,39 @@ export default function App() {
     };
   }, [adoptStoredSettings]);
 
-  const update = (patch: Partial<ExtensionSettings>) =>
-    setSettings((prev) => ({ ...prev, ...patch }));
-
   const preset = PROVIDERS.find((p) => p.id === settings.provider);
-  const capabilities = getModelCapabilities(settings);
+
+  // 在线列表带回的能力提示只补全已配置且尚无用户配置/内置基线的模型。
+  const applyLoadedModels = useCallback(
+    (entries: ModelListEntry[], hintProvider: string) => {
+      const hints = Object.fromEntries(
+        entries.map((entry) => [entry.id, entry.capabilities]),
+      ) as Record<string, ModelCapabilities>;
+      setSettings((prev) => {
+        if (prev.provider !== hintProvider) return prev;
+        const merged = mergeModelCapabilityHints(prev, hints);
+        return merged ? { ...prev, modelCapabilities: merged } : prev;
+      });
+    },
+    [],
+  );
+
   const providerModels = useProviderModels({
+    provider: settings.provider,
     baseUrl: settings.baseUrl,
     apiKey: settings.apiKey,
+    onModelsLoaded: applyLoadedModels,
   });
+  const capabilities = getModelCapabilities(settings);
+
+  // 设置变化时顺带补全新出现模型的能力（例如刚从下拉列表加入模型池）。
+  const update = (patch: Partial<ExtensionSettings>) =>
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      if (providerModels.capabilityProvider !== next.provider) return next;
+      const merged = mergeModelCapabilityHints(next, providerModels.capabilityHints);
+      return merged ? { ...next, modelCapabilities: merged } : next;
+    });
 
   // 下拉选项 = 已配置模型 + 在线获取的最新模型 + 内置预设，去重后展示。
   const modelOptions = [
@@ -391,6 +418,8 @@ export default function App() {
       <Hint>
         当前能力配置对应“{preset?.label ?? settings.provider} /{' '}
         {settings.model || '未选择模型'}”；切换模型后会分别记忆。
+        <br />
+        首次获取到在线模型列表时，会根据供应商返回的信息或模型名自动勾选；推断可能有误，可手动修正。
         <br />
         图片只在你主动截图或选取视觉元素时发送。
       </Hint>

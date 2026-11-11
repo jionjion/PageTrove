@@ -265,8 +265,14 @@ describe('requestModelList', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(requestModelList(settings)).resolves.toEqual([
-      'deepseek-v4-flash',
-      'deepseek-v4-pro',
+      {
+        id: 'deepseek-v4-flash',
+        capabilities: { vision: false, tools: true },
+      },
+      {
+        id: 'deepseek-v4-pro',
+        capabilities: { vision: false, tools: true },
+      },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
       'https://dashscope.aliyuncs.com/compatible-mode/v1/models',
@@ -279,14 +285,17 @@ describe('requestModelList', () => {
     );
   });
 
-  it('兼容裸数组与 models 字段', async () => {
+  it('兼容裸数组与 models 字段，并按模型名推断能力', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => streamResponse([JSON.stringify(['glm-5.2', 'glm-5'])])),
     );
     await expect(
       requestModelList({ baseUrl: 'https://open.bigmodel.cn/api/paas/v4', apiKey: 'k' }),
-    ).resolves.toEqual(['glm-5.2', 'glm-5']);
+    ).resolves.toEqual([
+      { id: 'glm-5.2', capabilities: { vision: false, tools: true } },
+      { id: 'glm-5', capabilities: { vision: false, tools: true } },
+    ]);
 
     vi.stubGlobal(
       'fetch',
@@ -296,7 +305,47 @@ describe('requestModelList', () => {
     );
     await expect(
       requestModelList({ baseUrl: 'https://api.moonshot.cn/v1', apiKey: 'k' }),
-    ).resolves.toEqual(['kimi-k3']);
+    ).resolves.toEqual([{ id: 'kimi-k3', capabilities: { vision: false, tools: true } }]);
+  });
+
+  it('优先采用供应商返回的能力字段', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        streamResponse([
+          JSON.stringify({
+            data: [
+              { id: 'custom-a', capabilities: { vision: true, tools: false } },
+              {
+                id: 'custom-b',
+                architecture: {
+                  modality: 'text+image->text',
+                  input_modalities: ['text', 'image'],
+                },
+                supported_parameters: ['temperature', 'tools'],
+              },
+              {
+                id: 'custom-c',
+                modalities: ['text'],
+                supported_parameters: ['temperature'],
+              },
+              { id: 'qwen3-vl-max', capabilities: { tools: false } },
+              { id: 'my-model', supports_vision: true, supports_tools: true },
+            ],
+          }),
+        ]),
+      ),
+    );
+
+    await expect(
+      requestModelList({ baseUrl: 'https://example.com/v1', apiKey: 'k' }),
+    ).resolves.toEqual([
+      { id: 'custom-a', capabilities: { vision: true, tools: false } },
+      { id: 'custom-b', capabilities: { vision: true, tools: true } },
+      { id: 'custom-c', capabilities: { vision: false, tools: false } },
+      { id: 'qwen3-vl-max', capabilities: { vision: true, tools: false } },
+      { id: 'my-model', capabilities: { vision: true, tools: true } },
+    ]);
   });
 
   it('超过数量上限时截断', async () => {
