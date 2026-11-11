@@ -8,15 +8,25 @@ import { createSseAccumulator } from '@/services/ai/sse-accumulator';
  * 不读取 React 状态或 IndexedDB,不组装业务消息。
  */
 
-function endpoint(settings: ExtensionSettings): string {
-  return `${settings.baseUrl.replace(/\/$/, '')}/chat/completions`;
+function endpoint(settings: Pick<ExtensionSettings, 'baseUrl'>): string {
+  return `${settings.baseUrl.replace(/\/+$/, '')}/chat/completions`;
 }
 
-function authHeaders(settings: ExtensionSettings): Record<string, string> {
+function modelsEndpoint(settings: Pick<ExtensionSettings, 'baseUrl'>): string {
+  return `${settings.baseUrl.replace(/\/+$/, '')}/models`;
+}
+
+function authHeaders(
+  settings: Pick<ExtensionSettings, 'apiKey'>,
+): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${settings.apiKey}`,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function assertResponseOk(response: Response, label: string): void {
@@ -108,6 +118,96 @@ function rethrowRequestError(error: unknown, signal: AbortSignal): never {
   }
   if (error instanceof AppError) throw error;
   throw new AppError('NETWORK_ERROR');
+}
+
+export const MODEL_LIST_LIMITS = {
+  models: 200,
+  inspected: 1_000,
+  idLength: 200,
+} as const;
+
+/** OpenAI 兼容 /models 中混有嵌入、语音、图像等非对话模型，选择模型时过滤掉。 */
+const NON_CHAT_MODEL =
+  /(?:embedding|embed-|rerank|tts|asr|whisper|speech|transcri|moderation|audio|image-generation|video-generation|wanx|cosyvoice|paraformer)/i;
+
+/** 兼容 `{ data: [...] }`、`{ models: [...] }` 与裸数组三种常见返回结构。 */
+function readModelIds(body: unknown): string[] {
+  const entries = Array.isArray(body)
+    ? body
+    : isRecord(body)
+      ? Array.isArray(body.data)
+        ? body.data
+        : Array.isArray(body.models)
+          ? body.models
+          : undefined
+      : undefined;
+  if (!entries) throw invalidResponse('模型列表返回格式异常');
+
+  const ids: string[] = [];
+  for (const entry of entries.slice(0, MODEL_LIST_LIMITS.inspected)) {
+    const rawId =
+      typeof entry === 'string'
+        ? entry
+        : isRecord(entry) && typeof entry.id === 'string'
+          ? entry.id
+          : undefined;
+    if (rawId === undefined) continue;
+    const id = rawId.trim();
+    if (!id || id.length > MODEL_LIST_LIMITS.idLength) continue;
+    if (NON_CHAT_MODEL.test(id)) continue;
+    ids.push(id);
+    if (ids.length >= MODEL_LIST_LIMITS.models) break;
+  }
+  return [...new Set(ids)];
+}
+
+/**
+ * GET /models：读取供应商当前可用的模型 ID（OpenAI 兼容端点）。
+ * 只负责协议与边界校验；合并选项和错误提示由调用方处理。
+ */
+export async function requestModelList(
+  settings: Pick<ExtensionSettings, 'baseUrl' | 'apiKey'>,
+  timeoutMs = 15_000,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const controller = new AbortController();
+  const unlink = linkAbortSignal(controller, signal);
+  const timer = setTimeout(
+    () => controller.abort(new AppError('REQUEST_TIMEOUT')),
+    timeoutMs,
+  );
+  try {
+    const response = await fetch(modelsEndpoint(settings), {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${settings.apiKey}`,
+      },
+      signal: controller.signal,
+    });
+    throwIfAborted(controller.signal);
+    // 部分供应商不提供 /models（如智谱、Kimi 的某些网关）；静默回退到内置预设。
+    if (response.status === 404 || response.status === 405) return [];
+    assertResponseOk(response, '模型列表获取失败');
+
+    const text = await readBoundedText(
+      response,
+      AI_RESPONSE_LIMITS.jsonBodyBytes,
+      controller.signal,
+    );
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw invalidResponse('模型列表返回了无效 JSON');
+    }
+    return readModelIds(body);
+  } catch (error) {
+    rethrowRequestError(error, controller.signal);
+  } finally {
+    clearTimeout(timer);
+    unlink();
+  }
 }
 
 /** 非流式 JSON 补全(收藏整理用),返回首个 choice 的文本。 */

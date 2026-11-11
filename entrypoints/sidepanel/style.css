@@ -235,13 +235,49 @@ body {
 
 .options-actions {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
   padding-top: 12px;
   border-top: 1px solid #f0f0f0;
+  font-size: 12px;
 }
 
 .options-actions .ant-btn {
   border-radius: 8px;
+}
+
+.options-loading {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+/* 每日活跃热力图 */
+.activity-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-heatmap-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 12px;
+  color: #595959;
+}
+
+.activity-heatmap-summary strong {
+  color: #1677ff;
+  font-size: 14px;
+}
+
+.activity-heatmap-svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 /* 对话 */

@@ -9,6 +9,7 @@ import {
   Modal,
   Select,
   Space,
+  Spin,
   Switch,
   Typography,
 } from 'antd';
@@ -28,7 +29,7 @@ import {
   modelCapabilityKey,
   PROVIDERS,
 } from '@/types/settings';
-import { getSettings, saveSettings } from '@/services/settings-store';
+import { getSettings } from '@/services/settings-store';
 import { getClipsByIds, queryClips } from '@/services/clip-store';
 import { downloadClipsArchive } from '@/services/obsidian-export';
 import {
@@ -39,9 +40,11 @@ import {
   type ImportStrategy,
 } from '@/services/backup';
 import { toErrorMessage } from '@/utils/errors';
+import { formatTime } from '@/utils/format';
 import { McpSettings } from '@/components/McpSettings';
 import { DataStatsPanel } from '@/components/DataStatsPanel';
-import { validateMcpServer } from '@/services/mcp-client';
+import { useSettingsAutosave } from '@/hooks/useSettingsAutosave';
+import { useProviderModels } from '@/hooks/useProviderModels';
 
 import iconUrl from '/icon/48.png';
 
@@ -67,16 +70,47 @@ export default function App() {
   const { message } = AntApp.useApp();
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
   const [section, setSection] = useState('profile');
+  const [hydrated, setHydrated] = useState(false);
+  const [hydrationError, setHydrationError] = useState<string>();
+  const autosave = useSettingsAutosave({ settings, hydrated });
+  const { flush, adoptStoredSettings } = autosave;
 
   useEffect(() => {
-    void getSettings().then(setSettings);
-  }, []);
+    let cancelled = false;
+    void getSettings()
+      .then((loaded) => {
+        if (cancelled) return;
+        adoptStoredSettings(loaded);
+        setSettings(loaded);
+        setHydrated(true);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setHydrationError(toErrorMessage(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [adoptStoredSettings]);
 
   const update = (patch: Partial<ExtensionSettings>) =>
     setSettings((prev) => ({ ...prev, ...patch }));
 
   const preset = PROVIDERS.find((p) => p.id === settings.provider);
   const capabilities = getModelCapabilities(settings);
+  const providerModels = useProviderModels({
+    baseUrl: settings.baseUrl,
+    apiKey: settings.apiKey,
+  });
+
+  // 下拉选项 = 已配置模型 + 在线获取的最新模型 + 内置预设，去重后展示。
+  const modelOptions = [
+    ...new Set([
+      ...(settings.modelPool[settings.provider] ?? []),
+      ...providerModels.models,
+      ...(preset?.models ?? []),
+    ]),
+  ].map((value) => ({ value }));
 
   const updateCurrentModelCapabilities = (patch: Partial<typeof capabilities>) => {
     const key = modelCapabilityKey(settings.provider, settings.model);
@@ -104,23 +138,6 @@ export default function App() {
       apiKey: saved?.apiKey ?? '',
       providerCredentials: credentials,
     });
-  };
-
-  const handleSave = async () => {
-    try {
-      settings.mcpServers.filter((server) => server.enabled).forEach(validateMcpServer);
-      await saveSettings({
-        ...settings,
-        // 当前供应商的凭据同步进 providerCredentials，切换供应商时不丢失。
-        providerCredentials: {
-          ...settings.providerCredentials,
-          [settings.provider]: { apiKey: settings.apiKey, baseUrl: settings.baseUrl },
-        },
-      });
-      message.success('设置已保存');
-    } catch (e) {
-      message.error(toErrorMessage(e));
-    }
   };
 
   const [obsidianIncludeContent, setObsidianIncludeContent] = useState(true);
@@ -156,6 +173,10 @@ export default function App() {
 
   const handleBackupExport = async () => {
     try {
+      if (!(await flush())) {
+        message.warning('设置尚未保存成功，请检查后重试');
+        return;
+      }
       await exportBackup();
       message.success('备份文件已下载');
     } catch (e) {
@@ -184,11 +205,17 @@ export default function App() {
       message.warning('请先确认并信任备份中的自定义 API 地址');
       return;
     }
+    let importRan = false;
     try {
       setBackupLoading(true);
+      if (!(await flush())) {
+        message.warning('设置尚未保存成功，请检查后重试');
+        return;
+      }
       const result = await importBackup(backupFile, strategy, {
         confirmCustomEndpoint: backupEndpointConfirmed,
       });
+      importRan = true;
       const parts: string[] = [];
       if (result.clips.imported > 0) parts.push(`收藏 ${result.clips.imported} 条`);
       if (result.chats.imported > 0) parts.push(`会话 ${result.chats.imported} 条`);
@@ -213,6 +240,16 @@ export default function App() {
     } finally {
       setBackupLoading(false);
       closeBackupPreview();
+      if (importRan) {
+        // 恢复可能改写了 storage 中的设置；重新读取，避免后续自动保存写回旧 state。
+        try {
+          const latest = await getSettings();
+          adoptStoredSettings(latest);
+          setSettings(latest);
+        } catch (error) {
+          message.error(`重新读取设置失败：${toErrorMessage(error)}`);
+        }
+      }
     }
   };
 
@@ -250,9 +287,15 @@ export default function App() {
       <Label>Base URL</Label>
       <Input
         placeholder="https://…（OpenAI 兼容接口地址）"
+        disabled={settings.provider !== 'custom'}
         value={settings.baseUrl}
         onChange={(e) => update({ baseUrl: e.target.value })}
       />
+      {settings.provider !== 'custom' && (
+        <Hint>
+          内置供应商的接口地址由预设固定；如需自定义地址，请选择“自定义”供应商。
+        </Hint>
+      )}
 
       <Label>API Key</Label>
       <Input.Password
@@ -260,6 +303,7 @@ export default function App() {
         autoComplete="off"
         value={settings.apiKey}
         onChange={(e) => update({ apiKey: e.target.value })}
+        onBlur={() => void providerModels.refresh()}
       />
       <Hint>
         Key 只保存在本机浏览器（browser.storage.local）中，仅用于本插件调用你选择的 AI
@@ -285,6 +329,10 @@ export default function App() {
         mode="tags"
         style={{ width: '100%' }}
         placeholder="输入模型名称后回车，可添加多个"
+        loading={providerModels.loading}
+        onOpenChange={(open) => {
+          if (open) void providerModels.refresh();
+        }}
         value={settings.modelPool[settings.provider] ?? []}
         onChange={(models: string[]) => {
           const cleaned = [...new Set(models.map((m) => m.trim()).filter(Boolean))];
@@ -297,9 +345,19 @@ export default function App() {
           }
           update(patch);
         }}
-        options={(preset?.models ?? []).map((m) => ({ value: m }))}
+        options={modelOptions}
       />
-      <Hint>可配置多个模型，在聊天输入框中随时切换。</Hint>
+      {providerModels.error ? (
+        <Hint>
+          未能获取在线模型列表：{providerModels.error}
+          。仍可手动输入模型名称，或在检查 Key 后重新打开下拉框重试。
+        </Hint>
+      ) : (
+        <Hint>
+          可配置多个模型，在聊天输入框中随时切换。填完 API Key
+          或打开下拉框时会自动获取最新模型列表。
+        </Hint>
+      )}
 
       <Label>当前模型</Label>
       <Select
@@ -526,6 +584,7 @@ export default function App() {
     mcp: mcpSection,
     data: dataSection,
   };
+  const mcpIssueNames = [...new Set(autosave.mcpIssues.map((issue) => issue.name))];
 
   return (
     <div className="options-page">
@@ -546,12 +605,40 @@ export default function App() {
           items={menuItems}
         />
         <div className="options-content">
-          <div className="options-content-card">{sections[section]}</div>
-          <div className="options-actions">
-            <Button type="primary" onClick={() => void handleSave()}>
-              保存设置
-            </Button>
+          <div className="options-content-card" onBlur={() => void autosave.flush()}>
+            {hydrationError ? (
+              <Alert type="error" showIcon title={`设置读取失败：${hydrationError}`} />
+            ) : !hydrated ? (
+              <div className="options-loading">
+                <Spin />
+              </div>
+            ) : (
+              sections[section]
+            )}
           </div>
+          {(autosave.status.state !== 'idle' || mcpIssueNames.length > 0) && (
+            <div className="options-actions" aria-live="polite">
+              {autosave.status.state === 'saving' && (
+                <Typography.Text type="secondary">保存中…</Typography.Text>
+              )}
+              {autosave.status.state === 'saved' && (
+                <Typography.Text type="secondary">
+                  已自动保存 {formatTime(autosave.status.at.toISOString())}
+                </Typography.Text>
+              )}
+              {autosave.status.state === 'error' && (
+                <Typography.Text type="danger">
+                  保存失败：{autosave.status.message}
+                </Typography.Text>
+              )}
+              {mcpIssueNames.length > 0 && (
+                <Typography.Text type="warning">
+                  MCP 配置未保存：{mcpIssueNames.join('、')}
+                  （请补全名称、地址和请求头）
+                </Typography.Text>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

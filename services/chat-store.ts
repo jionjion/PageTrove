@@ -2,6 +2,7 @@
 import type { ToolExecutionRecordResult } from '@/services/ai/provider';
 import { mapDatabaseError, openPageTroveDatabase } from '@/services/database';
 import { emitDataChanged } from '@/services/data-events';
+import { toLocalDayKey } from '@/utils/date';
 import { AppError } from '@/utils/errors';
 
 function toIndexEntry(session: ChatSession): ChatIndexEntry {
@@ -65,6 +66,30 @@ export async function getChatIndex(): Promise<ChatIndexEntry[]> {
     throw mapDatabaseError(error);
   }
   return [...entries].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+/**
+ * 按本地自然日统计全部会话的消息数，用于个人中心活动热力图。
+ * 需要读取完整会话（消息时间不在轻量索引中）；调用方应做防抖与单飞。
+ */
+export async function countChatMessagesByLocalDay(): Promise<Map<string, number>> {
+  const db = await openPageTroveDatabase();
+  let sessions: ChatSession[];
+  try {
+    sessions = await db.getAll('chats');
+  } catch (error) {
+    throw mapDatabaseError(error);
+  }
+
+  const counts = new Map<string, number>();
+  for (const session of sessions) {
+    for (const message of session.messages ?? []) {
+      const key = toLocalDayKey(message.createdAt);
+      if (!key) continue;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return counts;
 }
 
 export async function getChat(id: string): Promise<ChatSession | undefined> {

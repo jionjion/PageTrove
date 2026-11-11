@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBrowser } from 'wxt/testing';
 import { closePageTroveDatabase, openPageTroveDatabase } from '@/services/database';
 import {
+  countChatMessagesByLocalDay,
   getChat,
   recordChatToolExecution,
   removeChat,
@@ -403,5 +404,41 @@ describe('saveChat 乐观并发', () => {
       status: 'success',
       phase: undefined,
     });
+  });
+});
+
+describe('countChatMessagesByLocalDay', () => {
+  it('按本地自然日统计全部会话消息，跳过无效时间', async () => {
+    const day1 = new Date(2026, 2, 3, 10, 0).toISOString();
+    const day1Late = new Date(2026, 2, 3, 23, 30).toISOString();
+    const day2 = new Date(2026, 2, 4, 0, 30).toISOString();
+
+    await saveChat(
+      makeChat({
+        id: 'day-chat-a',
+        messages: [
+          { role: 'user', content: '1', createdAt: day1 },
+          { role: 'assistant', content: '2', createdAt: day1Late },
+          { role: 'user', content: 'bad', createdAt: 'not-a-date' },
+        ],
+      }),
+      null,
+    );
+    await saveChat(
+      makeChat({
+        id: 'day-chat-b',
+        messages: [{ role: 'user', content: '3', createdAt: day2 }],
+      }),
+      null,
+    );
+
+    const counts = await countChatMessagesByLocalDay();
+    expect(counts.get('2026-03-03')).toBe(2);
+    expect(counts.get('2026-03-04')).toBe(1);
+    expect(counts.size).toBe(2);
+  });
+
+  it('空库返回空 Map', async () => {
+    expect((await countChatMessagesByLocalDay()).size).toBe(0);
   });
 });

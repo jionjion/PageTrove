@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OpenAIMessage } from '@/services/ai/provider';
 import {
   AI_RESPONSE_LIMITS,
+  MODEL_LIST_LIMITS,
   requestJsonCompletion,
+  requestModelList,
   requestStreamingRound,
 } from '@/services/ai/openai-compatible-provider';
 import { DEFAULT_SETTINGS } from '@/types/settings';
@@ -241,5 +243,113 @@ describe('requestStreamingRound', () => {
     controller.abort(reason);
 
     await expect(promise).rejects.toBe(reason);
+  });
+});
+
+describe('requestModelList', () => {
+  it('GET /models 并解析、去重、过滤非对话模型', async () => {
+    const fetchMock = vi.fn(async () =>
+      streamResponse([
+        JSON.stringify({
+          data: [
+            { id: 'deepseek-v4-flash' },
+            { id: 'deepseek-v4-pro' },
+            { id: 'deepseek-v4-flash' },
+            { id: 'deepseek-embedding' },
+            { id: '   ' },
+            { nope: true },
+          ],
+        }),
+      ]),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(requestModelList(settings)).resolves.toEqual([
+      'deepseek-v4-flash',
+      'deepseek-v4-pro',
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://dashscope.aliyuncs.com/compatible-mode/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key',
+        }),
+      }),
+    );
+  });
+
+  it('兼容裸数组与 models 字段', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => streamResponse([JSON.stringify(['glm-5.2', 'glm-5'])])),
+    );
+    await expect(
+      requestModelList({ baseUrl: 'https://open.bigmodel.cn/api/paas/v4', apiKey: 'k' }),
+    ).resolves.toEqual(['glm-5.2', 'glm-5']);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        streamResponse([JSON.stringify({ models: [{ id: 'kimi-k3' }] })]),
+      ),
+    );
+    await expect(
+      requestModelList({ baseUrl: 'https://api.moonshot.cn/v1', apiKey: 'k' }),
+    ).resolves.toEqual(['kimi-k3']);
+  });
+
+  it('超过数量上限时截断', async () => {
+    const data = Array.from({ length: MODEL_LIST_LIMITS.models + 10 }, (_, index) => ({
+      id: `chat-model-${index}`,
+    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => streamResponse([JSON.stringify({ data })])),
+    );
+
+    const models = await requestModelList({
+      baseUrl: 'https://example.com/v1',
+      apiKey: 'k',
+    });
+    expect(models).toHaveLength(MODEL_LIST_LIMITS.models);
+  });
+
+  it('供应商不支持 /models 时返回空列表（回退到预设）', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('', { status: 404 })),
+    );
+    await expect(
+      requestModelList({ baseUrl: 'https://open.bigmodel.cn/api/paas/v4', apiKey: 'k' }),
+    ).resolves.toEqual([]);
+  });
+
+  it('鉴权失败映射为 AI_UNAUTHORIZED', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('', { status: 401 })),
+    );
+    await expect(
+      requestModelList({ baseUrl: 'https://api.deepseek.com', apiKey: 'bad' }),
+    ).rejects.toMatchObject({ code: 'AI_UNAUTHORIZED' });
+  });
+
+  it('无效 JSON 与异常结构被拒绝', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => streamResponse(['not-json'])),
+    );
+    await expect(requestModelList(settings)).rejects.toMatchObject({
+      code: 'INVALID_AI_RESPONSE',
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => streamResponse([JSON.stringify({ unexpected: [] })])),
+    );
+    await expect(requestModelList(settings)).rejects.toMatchObject({
+      code: 'INVALID_AI_RESPONSE',
+    });
   });
 });
