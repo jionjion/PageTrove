@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Input, Popconfirm, Space, Tooltip, Typography } from 'antd';
-import { DeleteOutlined, HistoryOutlined, LinkOutlined } from '@ant-design/icons';
+import {
+  ClearOutlined,
+  DeleteOutlined,
+  LinkOutlined,
+  PlusOutlined,
+} from '@ant-design/icons';
 import { browser } from 'wxt/browser';
 import type { ChatIndexEntry } from '@/types/chat';
 import { getChatIndex, removeChat } from '@/services/chat-store';
@@ -13,9 +18,11 @@ interface Props {
   active: boolean;
   /** 点击某条历史对话时打开该会话 */
   onOpen: (sessionId: string) => void;
+  /** 空状态下发起新对话 */
+  onNew: () => void;
 }
 
-export function ChatHistoryView({ active, onOpen }: Props) {
+export function ChatHistoryView({ active, onOpen, onNew }: Props) {
   const [sessions, setSessions] = useState<ChatIndexEntry[]>([]);
   const [keyword, setKeyword] = useState('');
   const [error, setError] = useState<string>();
@@ -68,9 +75,18 @@ export function ChatHistoryView({ active, onOpen }: Props) {
 
       {filtered.length === 0 ? (
         <EmptyState
-          icon={<HistoryOutlined />}
+          art={kw ? 'search' : 'history'}
           title={kw ? '没有匹配的对话' : '还没有对话记录'}
-          description={kw ? '换个关键词试试' : '点上方 + 发起新对话'}
+          description={kw ? '换个关键词试试，或清除搜索' : '围绕网页发起第一场对话吧'}
+          action={
+            kw
+              ? {
+                  label: '清除搜索',
+                  icon: <ClearOutlined />,
+                  onClick: () => setKeyword(''),
+                }
+              : { label: '发起新对话', icon: <PlusOutlined />, onClick: onNew }
+          }
         />
       ) : (
         filtered.map((s) => (

@@ -140,8 +140,8 @@ function MonthLineChart({
     >
       <defs>
         <linearGradient id="pagetrove-stats-area" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1677ff" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#1677ff" stopOpacity="0.02" />
+          <stop offset="0%" stopColor="#0d9488" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#0d9488" stopOpacity="0.02" />
         </linearGradient>
       </defs>
 
@@ -156,7 +156,7 @@ function MonthLineChart({
       <path
         d={linePath}
         fill="none"
-        stroke="#1677ff"
+        stroke="#0d9488"
         strokeWidth="1.5"
         strokeLinejoin="round"
         strokeLinecap="round"
@@ -169,7 +169,7 @@ function MonthLineChart({
             cy={p.y}
             r="2.5"
             fill="#fff"
-            stroke="#1677ff"
+            stroke="#0d9488"
             strokeWidth="1.5"
           >
             <title>{`${p.label}：${p.count} 条`}</title>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { Alert, Button, Card, Checkbox, Input, Space, Tooltip, Typography } from 'antd';
-import { SettingOutlined, StopOutlined } from '@ant-design/icons';
+import { SettingOutlined } from '@ant-design/icons';
 import type { AnalyzeResult } from '@/types/ai';
 import type { ClipIndexEntry, WebClip } from '@/types/clip';
 import type { PageSnapshot } from '@/types/page-snapshot';
@@ -27,7 +27,7 @@ export function CurrentPageView() {
   if (tab.unsupported) {
     return (
       <EmptyState
-        icon={<StopOutlined />}
+        art="blocked"
         title="浏览器内部页面，无法收藏"
         description="切换到普通网页再来吧"
       />

@@ -12,13 +12,14 @@ import {
   Typography,
 } from 'antd';
 import {
+  ClearOutlined,
   DeleteOutlined,
   DownloadOutlined,
   ExperimentOutlined,
   ExportOutlined,
-  InboxOutlined,
   MessageOutlined,
   SaveOutlined,
+  StarOutlined,
 } from '@ant-design/icons';
 import type { ClipIndexEntry, WebClip } from '@/types/clip';
 import type { ChatScope } from '@/types/chat';
@@ -30,15 +31,9 @@ import {
   removeClip,
   updateClip,
 } from '@/services/clip-store';
-import {
-  searchClipContents,
-  parseQueryTerms,
-} from '@/services/content-search';
+import { searchClipContents, parseQueryTerms } from '@/services/content-search';
 import { onDataChanged } from '@/services/data-events';
-import {
-  downloadClipMarkdown,
-  downloadClipsArchive,
-} from '@/services/obsidian-export';
+import { downloadClipMarkdown, downloadClipsArchive } from '@/services/obsidian-export';
 import { toErrorMessage } from '@/utils/errors';
 import { EmptyState } from '@/components/EmptyState';
 
@@ -53,9 +48,11 @@ interface Props {
   onChat?: (clipId: string) => void;
   /** 选择模式下点击"探究"时回调，携带收藏来源范围 */
   onResearch?: (scope: ChatScope) => void;
+  /** 空状态下跳转到收录页收藏当前网页 */
+  onCollect?: () => void;
 }
 
-export function ClipListView({ active, onChat, onResearch }: Props) {
+export function ClipListView({ active, onChat, onResearch, onCollect }: Props) {
   const [entries, setEntries] = useState<ClipIndexEntry[]>([]);
   const [keyword, setKeyword] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -268,6 +265,9 @@ export function ClipListView({ active, onChat, onResearch }: Props) {
     onResearch?.(scope);
   };
 
+  /** 有关键词或标签筛选时,空列表视为"无匹配"而非"还没有收藏" */
+  const filtering = keyword.trim() !== '' || tags.length > 0;
+
   return (
     <Space direction="vertical" size={10} style={{ display: 'flex' }}>
       <Input.Search
@@ -307,9 +307,7 @@ export function ClipListView({ active, onChat, onResearch }: Props) {
               <Button
                 size="small"
                 icon={<ExperimentOutlined />}
-                disabled={
-                  selected.size < MIN_RESEARCH || selected.size > MAX_RESEARCH
-                }
+                disabled={selected.size < MIN_RESEARCH || selected.size > MAX_RESEARCH}
                 onClick={() => void handleResearchSelected()}
               >
                 探究
@@ -340,9 +338,27 @@ export function ClipListView({ active, onChat, onResearch }: Props) {
 
       {entries.length === 0 ? (
         <EmptyState
-          icon={<InboxOutlined />}
-          title="还没有收藏"
-          description="点上方 ☆ 收藏当前网页吧"
+          art={filtering ? 'search' : 'clips'}
+          title={filtering ? '没有匹配的收藏' : '还没有收藏'}
+          description={
+            filtering
+              ? '换个关键词，或清除标签筛选试试'
+              : '把值得保留的网页收进你的知识库'
+          }
+          action={
+            filtering
+              ? {
+                  label: '清除筛选',
+                  icon: <ClearOutlined />,
+                  onClick: () => {
+                    setKeyword('');
+                    setTags([]);
+                  },
+                }
+              : onCollect
+                ? { label: '收藏当前网页', icon: <StarOutlined />, onClick: onCollect }
+                : undefined
+          }
         />
       ) : (
         entries.map((entry) => (
@@ -351,9 +367,7 @@ export function ClipListView({ active, onChat, onResearch }: Props) {
             size="small"
             hoverable
             className={
-              selecting && selected.has(entry.id)
-                ? 'clip-card-selected'
-                : undefined
+              selecting && selected.has(entry.id) ? 'clip-card-selected' : undefined
             }
             styles={{ body: { padding: '8px 12px' } }}
             onClick={() => void openDetail(entry.id)}
@@ -423,10 +437,7 @@ export function ClipListView({ active, onChat, onResearch }: Props) {
             )}
 
             {expandedId === entry.id && detail && !selecting && (
-              <div
-                style={{ marginTop: 10 }}
-                onClick={(e) => e.stopPropagation()}
-              >
+              <div style={{ marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
                 <Typography.Text strong style={{ display: 'block', margin: '8px 0 4px' }}>
                   备注
                 </Typography.Text>

@@ -136,7 +136,9 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
           verbose={verbose}
         />
         {(session?.messages.length ?? 0) === 0 && streaming === undefined && (
-          <ChatEmptyState hasScope={Boolean(activeScope)} onPreset={setInput} />
+          <div className="empty-state empty-state-interactive">
+            <ChatEmptyState hasScope={Boolean(activeScope)} onPreset={setInput} />
+          </div>
         )}
       </div>
       {error && (

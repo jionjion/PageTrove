@@ -19,6 +19,7 @@ import {
   CloudUploadOutlined,
   DatabaseOutlined,
   DownloadOutlined,
+  KeyOutlined,
   RobotOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -46,6 +47,7 @@ import { toErrorMessage } from '@/utils/errors';
 import { formatTime } from '@/utils/format';
 import { McpSettings } from '@/components/McpSettings';
 import { DataStatsPanel } from '@/components/DataStatsPanel';
+import { ShortcutSettings } from '@/components/ShortcutSettings';
 import { useSettingsAutosave } from '@/hooks/useSettingsAutosave';
 import { useProviderModels } from '@/hooks/useProviderModels';
 
@@ -283,6 +285,7 @@ export default function App() {
   const menuItems = [
     { key: 'profile', icon: <UserOutlined />, label: '个人中心' },
     { key: 'model', icon: <RobotOutlined />, label: '模型配置' },
+    { key: 'shortcuts', icon: <KeyOutlined />, label: '快捷键' },
     { key: 'mcp', icon: <ApiOutlined />, label: 'MCP 工具' },
     { key: 'data', icon: <DatabaseOutlined />, label: '数据管理' },
   ];
@@ -432,6 +435,20 @@ export default function App() {
         包含当前选中文字
       </Checkbox>
       <Hint>页面内容不会读取密码、Cookie 或本地存储。</Hint>
+    </>
+  );
+
+  const shortcutsSection = (
+    <>
+      <Typography.Title level={5} className="options-section-title">
+        快捷键
+      </Typography.Title>
+      <ShortcutSettings
+        value={settings.shortcuts}
+        onChange={(shortcuts) => update({ shortcuts })}
+        autoAnalyze={settings.shortcutAutoAnalyze}
+        onAutoAnalyzeChange={(shortcutAutoAnalyze) => update({ shortcutAutoAnalyze })}
+      />
     </>
   );
 
@@ -610,6 +627,7 @@ export default function App() {
   const sections: Record<string, React.ReactNode> = {
     profile: profileSection,
     model: modelSection,
+    shortcuts: shortcutsSection,
     mcp: mcpSection,
     data: dataSection,
   };

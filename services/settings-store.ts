@@ -7,6 +7,7 @@ import {
   type ModelCapabilities,
   type ProviderCredential,
 } from '@/types/settings';
+import { cloneShortcuts, decodeShortcuts } from '@/services/shortcuts';
 
 const SETTINGS_KEY = 'settings';
 const SETTINGS_PATCH_MESSAGE = 'pagetrove:save-settings-patch';
@@ -96,7 +97,9 @@ function cloneMcpServers(servers: McpServerSettings[]): McpServerSettings[] {
 }
 
 function cloneModelPool(pool: Record<string, string[]>): Record<string, string[]> {
-  return Object.fromEntries(Object.entries(pool).map(([key, value]) => [key, [...value]]));
+  return Object.fromEntries(
+    Object.entries(pool).map(([key, value]) => [key, [...value]]),
+  );
 }
 
 function cloneProviderCredentials(
@@ -277,6 +280,7 @@ export function decodeSettings(
       modelPool: cloneModelPool(fallback.modelPool),
       providerCredentials: cloneProviderCredentials(fallback.providerCredentials),
       mcpServers: cloneMcpServers(fallback.mcpServers),
+      shortcuts: cloneShortcuts(fallback.shortcuts),
     };
   }
 
@@ -333,6 +337,11 @@ export function decodeSettings(
       typeof value.mcpVerboseLog === 'boolean'
         ? value.mcpVerboseLog
         : fallback.mcpVerboseLog,
+    shortcuts: decodeShortcuts(value.shortcuts, fallback.shortcuts),
+    shortcutAutoAnalyze:
+      typeof value.shortcutAutoAnalyze === 'boolean'
+        ? value.shortcutAutoAnalyze
+        : fallback.shortcutAutoAnalyze,
   };
 
   // 旧数据没有 modelPool；保证当前生效模型始终出现在池中。

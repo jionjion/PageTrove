@@ -1,3 +1,5 @@
+import { DEFAULT_SHORTCUTS, type ShortcutMap } from '@/types/shortcuts';
+
 /** OpenAI 兼容接口的供应商预设 */
 export interface ProviderPreset {
   id: string;
@@ -89,6 +91,11 @@ export interface ExtensionSettings {
   mcpServers: McpServerSettings[];
   /** MCP 工具执行时是否打印详细日志（工具名称、参数、结果） */
   mcpVerboseLog: boolean;
+
+  /** 自定义快捷键表;open-panel 另有浏览器级备用键(manifest.commands)。 */
+  shortcuts: ShortcutMap;
+  /** 快捷键收录后是否自动调用 AI 整理(未配置 Key 时自动跳过)。 */
+  shortcutAutoAnalyze: boolean;
 }
 
 const BUILTIN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
@@ -169,4 +176,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   modelCapabilities: {},
   mcpServers: [],
   mcpVerboseLog: true,
+  shortcuts: DEFAULT_SHORTCUTS,
+  shortcutAutoAnalyze: true,
 };

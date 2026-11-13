@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Checkbox, Typography } from 'antd';
-import { FileSearchOutlined } from '@ant-design/icons';
 import { browser } from 'wxt/browser';
 import type { ChatScope, ChatSourceRef } from '@/types/chat';
 import { extractPage } from '@/services/page-extractor';
@@ -118,9 +117,7 @@ export function ResearchSetupView({ active, onStart }: Props) {
             title: snapshot.title || item.title,
             url: snapshot.url,
             faviconUrl: item.favicon,
-            content: [snapshot.description, snapshot.mainText]
-              .filter(Boolean)
-              .join('\n'),
+            content: [snapshot.description, snapshot.mainText].filter(Boolean).join('\n'),
             capturedAt: new Date().toISOString(),
           };
         }),
@@ -182,7 +179,7 @@ export function ResearchSetupView({ active, onStart }: Props) {
 
       {tabs.length === 0 ? (
         <EmptyState
-          icon={<FileSearchOutlined />}
+          art="research"
           title="当前窗口没有可读取的普通网页"
           description="打开几个网页标签页再来探究吧"
         />
@@ -192,14 +189,10 @@ export function ResearchSetupView({ active, onStart }: Props) {
             <label className="research-tab-item" key={tab.tabId}>
               <Checkbox
                 checked={selected.has(tab.tabId)}
-                disabled={
-                  !selected.has(tab.tabId) && selected.size >= MAX_TABS
-                }
+                disabled={!selected.has(tab.tabId) && selected.size >= MAX_TABS}
                 onChange={() => toggle(tab.tabId)}
               />
-              {tab.favicon && (
-                <img className="favicon" src={tab.favicon} alt="" />
-              )}
+              {tab.favicon && <img className="favicon" src={tab.favicon} alt="" />}
               <span className="research-tab-title" title={tab.url}>
                 {tab.title}
               </span>

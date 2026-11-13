@@ -355,3 +355,52 @@ describe('saveSettings', () => {
     expect(raw).toEqual(saved);
   });
 });
+
+describe('快捷键设置', () => {
+  beforeEach(() => {
+    fakeBrowser.reset();
+  });
+
+  it('默认值包含快捷键表与自动整理开关', async () => {
+    const settings = await getSettings();
+    expect(settings.shortcuts).toEqual(DEFAULT_SETTINGS.shortcuts);
+    expect(settings.shortcutAutoAnalyze).toBe(true);
+  });
+
+  it('自定义键位往返保存', async () => {
+    const next = await saveSettings({
+      shortcuts: {
+        ...DEFAULT_SETTINGS.shortcuts,
+        'quick-save': { kind: 'combo', keys: 'Alt+K' },
+      },
+    });
+    expect(next.shortcuts['quick-save']).toEqual({ kind: 'combo', keys: 'Alt+K' });
+    expect((await getSettings()).shortcuts['quick-save'].keys).toBe('Alt+K');
+  });
+
+  it('非法键位与非布尔开关回退默认', async () => {
+    await browser.storage.local.set({
+      [SETTINGS_KEY]: {
+        shortcuts: {
+          'quick-save': { kind: 'combo', keys: 'S' },
+          'open-panel': { kind: 'double', keys: 'Meta' },
+        },
+        shortcutAutoAnalyze: 'yes',
+      },
+    });
+    const settings = await getSettings();
+    expect(settings.shortcuts['quick-save']).toEqual(
+      DEFAULT_SETTINGS.shortcuts['quick-save'],
+    );
+    expect(settings.shortcuts['open-panel']).toEqual(
+      DEFAULT_SETTINGS.shortcuts['open-panel'],
+    );
+    expect(settings.shortcutAutoAnalyze).toBe(true);
+  });
+
+  it('shortcutAutoAnalyze=false 被保留', async () => {
+    const next = await saveSettings({ shortcutAutoAnalyze: false });
+    expect(next.shortcutAutoAnalyze).toBe(false);
+    expect((await getSettings()).shortcutAutoAnalyze).toBe(false);
+  });
+});

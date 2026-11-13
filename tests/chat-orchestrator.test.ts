@@ -1,5 +1,5 @@
 ﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ExtensionSettings } from '@/types/settings';
+import { DEFAULT_SETTINGS, type ExtensionSettings } from '@/types/settings';
 import type { RoundResult } from '@/services/ai/provider';
 import type { ToolApprovalDecision } from '@/types/mcp-tool';
 
@@ -21,6 +21,7 @@ vi.mock('@/services/ai/openai-compatible-provider', () => ({
 import { streamChat } from '@/services/ai/chat-orchestrator';
 
 const settings: ExtensionSettings = {
+  ...DEFAULT_SETTINGS,
   provider: 'custom',
   apiKey: 'test-only-key',
   baseUrl: 'https://ai.example.com/v1',

@@ -15,7 +15,7 @@ const WEEKS = 26;
 const WIDTH = LEFT_PAD + WEEKS * STEP + 8;
 const HEIGHT = TOP_PAD + 7 * STEP - GAP;
 
-const LEVEL_COLORS = ['#ebedf0', '#d6e4ff', '#91caff', '#4096ff', '#1677ff'];
+const LEVEL_COLORS = ['#ebedf0', '#ccfbf1', '#5eead4', '#2dd4bf', '#0d9488'];
 
 const WEEKDAY_LABELS: { row: number; label: string }[] = [
   { row: 0, label: '一' },

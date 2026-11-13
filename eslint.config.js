@@ -12,6 +12,14 @@ export default tseslint.config(
   reactHooks.configs.flat.recommended,
   prettier,
   {
+    // 构建脚本运行在 Node 环境,声明所需全局变量
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: { Buffer: 'readonly', console: 'readonly', process: 'readonly' },
+    },
+  },
+  {
     rules: {
       // WXT/浏览器扩展常见:未使用的下划线参数
       '@typescript-eslint/no-unused-vars': [

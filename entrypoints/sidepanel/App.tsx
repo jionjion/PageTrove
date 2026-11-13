@@ -10,6 +10,7 @@ import {
   SettingOutlined,
   StarOutlined,
 } from '@ant-design/icons';
+import { BrandMark } from '@/components/BrandMark';
 import { CurrentPageView } from '@/components/CurrentPageView';
 import { ClipListView } from '@/components/ClipListView';
 import { ChatView } from '@/components/ChatView';
@@ -20,6 +21,21 @@ import {
   onQuoteIntentChanged,
   requestNextQuoteIntent,
 } from '@/services/chat-intent-store';
+import {
+  onShortcutIntentChanged,
+  takeShortcutIntent,
+} from '@/services/shortcut-intent-store';
+import { decodeSettings, getSettings } from '@/services/settings-store';
+import { runQuickSave } from '@/services/quick-save';
+import { bindingText } from '@/services/shortcuts';
+import {
+  DEFAULT_SHORTCUTS,
+  SHORTCUT_VIEW_MAP,
+  type ShortcutAction,
+  type ShortcutMap,
+} from '@/types/shortcuts';
+import { useAppShortcuts } from '@/hooks/useAppShortcuts';
+import { useCurrentTab } from '@/hooks/useCurrentTab';
 
 type View = 'chat' | 'research' | 'history' | 'current' | 'clips';
 
@@ -34,6 +50,12 @@ export default function App() {
   /** storage 变化可能密集到达；同一侧边栏只允许一个 drain 循环。 */
   const consumingIntents = useRef(false);
   const consumeAgain = useRef(false);
+
+  const [shortcuts, setShortcuts] = useState<ShortcutMap>(DEFAULT_SHORTCUTS);
+  const tab = useCurrentTab();
+  const consumedShortcutIds = useRef(new Set<string>());
+  const consumingShortcuts = useRef(false);
+  const consumeShortcutAgain = useRef(false);
 
   const dispatchChat = (command: ChatCommand) => {
     setChatCommand(command);
@@ -72,12 +94,86 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** 消费网页快捷键发来的导航意图(面板未开时由 background 写入)。 */
+  const consumeShortcutIntents = async () => {
+    if (consumingShortcuts.current) {
+      consumeShortcutAgain.current = true;
+      return;
+    }
+    consumingShortcuts.current = true;
+    try {
+      do {
+        consumeShortcutAgain.current = false;
+        for (;;) {
+          const intent = await takeShortcutIntent();
+          if (!intent) break;
+          if (consumedShortcutIds.current.has(intent.id)) continue;
+          consumedShortcutIds.current.add(intent.id);
+          if (intent.newChat) dispatchChat({ kind: 'new' });
+          else setView(intent.view);
+        }
+      } while (consumeShortcutAgain.current);
+    } catch (error) {
+      console.error('读取快捷键意图失败', error);
+    } finally {
+      consumingShortcuts.current = false;
+    }
+  };
+
+  useEffect(() => {
+    queueMicrotask(() => void consumeShortcutIntents());
+    return onShortcutIntentChanged(() => void consumeShortcutIntents());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 键位设置变化时即时同步(设置页改键无需重开面板)
+  useEffect(() => {
+    let cancelled = false;
+    void getSettings()
+      .then((settings) => {
+        if (!cancelled) setShortcuts(settings.shortcuts);
+      })
+      .catch(() => {});
+    const listener = (
+      changes: Record<string, Browser.storage.StorageChange>,
+      areaName: string,
+    ) => {
+      if (areaName === 'local' && changes.settings) {
+        setShortcuts(decodeSettings(changes.settings.newValue).shortcuts);
+      }
+    };
+    browser.storage.onChanged.addListener(listener);
+    return () => {
+      cancelled = true;
+      browser.storage.onChanged.removeListener(listener);
+    };
+  }, []);
+
+  /** 焦点在侧边栏时的本地快捷键处理。 */
+  const handleShortcutAction = (action: ShortcutAction) => {
+    const targetView = SHORTCUT_VIEW_MAP[action];
+    if (targetView) {
+      setView(targetView);
+      return;
+    }
+    if (action === 'new-chat') dispatchChat({ kind: 'new' });
+    else if (action === 'open-settings') void browser.runtime.openOptionsPage();
+    else if (action === 'quick-save') void runQuickSave(tab.tabId);
+    // open-panel:面板已打开,无需动作
+  };
+  useAppShortcuts(shortcuts, handleShortcutAction);
+
   const navigation = [
-    { key: 'chat', label: '对话', icon: <MessageOutlined /> },
-    { key: 'current', label: '收录', icon: <StarOutlined /> },
-    { key: 'clips', label: '收藏', icon: <FolderOpenOutlined /> },
-    { key: 'research', label: '探究', icon: <FileSearchOutlined /> },
-    { key: 'history', label: '历史', icon: <HistoryOutlined /> },
+    { key: 'chat', label: '对话', action: 'view-chat', icon: <MessageOutlined /> },
+    { key: 'current', label: '收录', action: 'view-current', icon: <StarOutlined /> },
+    { key: 'clips', label: '收藏', action: 'view-clips', icon: <FolderOpenOutlined /> },
+    {
+      key: 'research',
+      label: '探究',
+      action: 'view-research',
+      icon: <FileSearchOutlined />,
+    },
+    { key: 'history', label: '历史', action: 'view-history', icon: <HistoryOutlined /> },
   ] as const;
 
   return (
@@ -85,10 +181,13 @@ export default function App() {
       <header className="app-header">
         <div className="app-brand-row">
           <div className="app-brand">
+            <BrandMark />
             拾页 <span>PageTrove</span>
           </div>
-          <div className="app-header-actions">
-            <Tooltip title="新对话（针对当前网页）">
+          <nav className="app-header-actions" aria-label="主要导航">
+            <Tooltip
+              title={`新对话（针对当前网页） · ${bindingText(shortcuts['new-chat'])}`}
+            >
               <Button
                 type="text"
                 aria-label="新对话（针对当前网页）"
@@ -96,7 +195,23 @@ export default function App() {
                 onClick={() => dispatchChat({ kind: 'new' })}
               />
             </Tooltip>
-            <Tooltip title="设置">
+            <span className="app-header-divider" aria-hidden="true" />
+            {navigation.map((item) => (
+              <Tooltip
+                key={item.key}
+                title={`${item.label} · ${bindingText(shortcuts[item.action])}`}
+              >
+                <Button
+                  type="text"
+                  aria-label={item.label}
+                  aria-current={view === item.key ? 'page' : undefined}
+                  icon={item.icon}
+                  onClick={() => setView(item.key)}
+                />
+              </Tooltip>
+            ))}
+            <span className="app-header-divider" aria-hidden="true" />
+            <Tooltip title={`设置 · ${bindingText(shortcuts['open-settings'])}`}>
               <Button
                 type="text"
                 aria-label="设置"
@@ -104,22 +219,8 @@ export default function App() {
                 onClick={() => void browser.runtime.openOptionsPage()}
               />
             </Tooltip>
-          </div>
+          </nav>
         </div>
-        <nav className="app-nav" aria-label="主要导航">
-          {navigation.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className="app-nav-item"
-              aria-current={view === item.key ? 'page' : undefined}
-              onClick={() => setView(item.key)}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
       </header>
 
       {/* 各视图保持挂载以保留状态，仅切换显示 */}
@@ -146,6 +247,7 @@ export default function App() {
         <ChatHistoryView
           active={view === 'history'}
           onOpen={(sessionId) => dispatchChat({ kind: 'open', sessionId })}
+          onNew={() => dispatchChat({ kind: 'new' })}
         />
       </div>
       <div
@@ -162,6 +264,7 @@ export default function App() {
           active={view === 'clips'}
           onChat={(clipId) => dispatchChat({ kind: 'new', clipId })}
           onResearch={(scope) => dispatchChat({ kind: 'new-scope', scope })}
+          onCollect={() => setView('current')}
         />
       </div>
     </div>
