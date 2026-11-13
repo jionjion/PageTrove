@@ -1,4 +1,4 @@
-import { browser, type Browser } from 'wxt/browser';
+import { browser } from 'wxt/browser';
 import {
   enqueueQuoteIntent,
   isTakeIntentMessage,
@@ -11,7 +11,6 @@ import { enqueueShortcutIntent } from '@/services/shortcut-intent-store';
 import { runQuickSave } from '@/services/quick-save';
 
 const MENU_ID = 'pagetrove-ask-selection';
-const OPEN_PANEL_COMMAND = 'open-panel';
 
 function openPanelForTab(tabId: number): void {
   browser.sidePanel.open({ tabId }).catch((error: unknown) => {
@@ -67,24 +66,6 @@ export default defineBackground(() => {
     .catch((error: unknown) => {
       console.error('设置侧边栏失败：', error);
     });
-
-  // 浏览器级备用快捷键(manifest.commands):内容脚本无法注入的页面也能开面板。
-  // 默认的「双击 Alt」由内容脚本监听,不占用 command 键位。
-  browser.commands.onCommand.addListener((command: string, tab?: Browser.tabs.Tab) => {
-    if (command !== OPEN_PANEL_COMMAND) return;
-    if (typeof tab?.id === 'number') {
-      openPanelForTab(tab.id);
-      return;
-    }
-    void browser.tabs
-      .query({ active: true, currentWindow: true })
-      .then(([active]) => {
-        if (typeof active?.id === 'number') openPanelForTab(active.id);
-      })
-      .catch((error: unknown) => {
-        console.error('查询当前标签页失败：', error);
-      });
-  });
 
   // 注册右键菜单：选中文字后"向拾页提问"
   browser.runtime.onInstalled.addListener(() => {

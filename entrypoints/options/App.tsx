@@ -435,6 +435,15 @@ export default function App() {
         包含当前选中文字
       </Checkbox>
       <Hint>页面内容不会读取密码、Cookie 或本地存储。</Hint>
+
+      <Label>一键收录</Label>
+      <Checkbox
+        checked={settings.shortcutAutoAnalyze}
+        onChange={(e) => update({ shortcutAutoAnalyze: e.target.checked })}
+      >
+        快捷键收录后自动 AI 整理
+      </Checkbox>
+      <Hint>收录成功后自动生成摘要与标签；未配置 API Key 时自动跳过。</Hint>
     </>
   );
 
@@ -446,8 +455,6 @@ export default function App() {
       <ShortcutSettings
         value={settings.shortcuts}
         onChange={(shortcuts) => update({ shortcuts })}
-        autoAnalyze={settings.shortcutAutoAnalyze}
-        onAutoAnalyzeChange={(shortcutAutoAnalyze) => update({ shortcutAutoAnalyze })}
       />
     </>
   );

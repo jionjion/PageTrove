@@ -92,7 +92,7 @@ export interface ExtensionSettings {
   /** MCP 工具执行时是否打印详细日志（工具名称、参数、结果） */
   mcpVerboseLog: boolean;
 
-  /** 自定义快捷键表;open-panel 另有浏览器级备用键(manifest.commands)。 */
+  /** 自定义快捷键表;全部由扩展内按键监听实现。 */
   shortcuts: ShortcutMap;
   /** 快捷键收录后是否自动调用 AI 整理(未配置 Key 时自动跳过)。 */
   shortcutAutoAnalyze: boolean;
@@ -175,7 +175,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   includeSelectedText: true,
   modelCapabilities: {},
   mcpServers: [],
-  mcpVerboseLog: true,
+  mcpVerboseLog: false,
   shortcuts: DEFAULT_SHORTCUTS,
   shortcutAutoAnalyze: true,
 };

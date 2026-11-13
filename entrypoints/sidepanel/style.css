@@ -1686,109 +1686,63 @@ body {
 }
 
 /* ── 快捷键设置 ──────────────────────────────────────────────
-   键位芯片 + 录制态呼吸/错误抖动/成功闪光,全部取品牌令牌。 */
-.pt-shortcut-group {
-  margin-bottom: 18px;
-}
-
-.pt-shortcut-group-head {
+   与模型配置页同一表单节奏:Label → 控件 → Hint;
+   键位控件仿 antd 输入框,录制呼吸/错误抖动/成功闪光。 */
+.pt-shortcut-rows {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.pt-shortcut-group-title {
-  font-size: 13px;
-  color: var(--pt-ink);
-}
-
-.pt-shortcut-group-desc {
-  font-size: 11px;
-  color: var(--pt-ink-3);
+  flex-direction: column;
+  gap: 4px;
 }
 
 .pt-shortcut-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding: 9px 12px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius);
+  min-height: 38px;
+}
+
+.pt-shortcut-name {
+  font-size: 13px;
+  color: var(--pt-ink);
+  line-height: 1.5;
+}
+
+.pt-shortcut-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.pt-shortcut-foot .options-hint {
+  margin: 0;
+}
+
+/* 键位控件对齐模型配置页的 antd 输入框:固定宽度、左对齐、同样的描边与圆角 */
+.pt-keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  flex: none;
+  width: 200px;
+  min-height: 32px;
+  padding: 4px 11px;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
   background: var(--pt-surface);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease;
 }
 
-.pt-shortcut-row:hover {
-  border-color: var(--pt-teal-3);
-  box-shadow: var(--pt-shadow-sm);
-}
-
-.pt-shortcut-group > div + div {
-  margin-top: 8px;
-}
-
-.pt-shortcut-icon {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--pt-teal-border);
-  border-radius: 9px;
-  background: var(--pt-teal-1);
-  color: var(--pt-primary-deep);
-  font-size: 16px;
-}
-
-.pt-shortcut-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  flex: 1;
-  min-width: 0;
-}
-
-.pt-shortcut-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--pt-ink);
-  line-height: 1.5;
-}
-
-.pt-shortcut-desc {
-  font-size: 11px;
-  color: var(--pt-ink-3);
-  line-height: 1.5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.pt-keycap {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-  min-height: 32px;
-  padding: 4px 8px;
-  border: 1px solid var(--pt-teal-border);
-  border-radius: 8px;
-  background: linear-gradient(180deg, #fff, var(--pt-teal-1));
-  cursor: pointer;
-  font-family: inherit;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
-}
-
 .pt-keycap:hover {
-  border-color: var(--pt-primary-soft);
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.16);
-  transform: translateY(-1px);
+  border-color: var(--pt-primary);
 }
 
 .pt-keycap:focus-visible {
@@ -1796,77 +1750,33 @@ body {
   outline-offset: 2px;
 }
 
-.pt-keycap kbd {
-  min-width: 22px;
-  padding: 1px 6px;
-  border: 1px solid var(--pt-teal-border);
-  border-bottom-width: 2px;
-  border-radius: 5px;
-  background: #fff;
-  color: var(--pt-primary-deep);
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.6;
-  text-align: center;
+.pt-keycap-value {
+  color: var(--pt-ink);
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 
-.pt-keycap-static {
-  cursor: default;
-}
-
-.pt-keycap-static:hover {
-  border-color: var(--pt-teal-border);
-  box-shadow: none;
-  transform: none;
-}
-
-.pt-keycap-double-badge {
-  margin-left: 2px;
-  padding: 0 5px;
-  border: 1px solid #ffe7ba;
-  border-radius: 4px;
-  background: #fff7e6;
+.pt-keycap-double {
+  margin-left: 5px;
   color: var(--pt-gold-deep);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.7;
+  font-size: 12px;
 }
 
 .pt-keycap-recording {
-  gap: 7px;
-  border-style: dashed;
   border-color: var(--pt-primary);
-  background: var(--pt-teal-1);
-  color: var(--pt-primary-deep);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: default;
-  animation: pt-rec-pulse 1.3s ease-in-out infinite;
-}
-
-.pt-keycap-recording:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-.pt-rec-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--pt-primary);
-  animation: pt-rec-blink 1s ease-in-out infinite;
-}
-
-.pt-rec-esc {
   color: var(--pt-ink-3);
-  font-size: 10px;
-  font-weight: 400;
+  font-size: 13px;
+  cursor: default;
 }
 
 .pt-keycap-error {
   border-color: var(--pt-red);
   animation: pt-shake 0.3s ease;
+}
+
+.pt-keycap-error:hover {
+  border-color: var(--pt-red);
 }
 
 .pt-keycap-flash {
@@ -1875,60 +1785,10 @@ body {
 }
 
 .pt-shortcut-error {
-  margin: 4px 2px 0;
+  margin: -2px 0 4px;
   color: var(--pt-red);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.pt-shortcut-reset {
-  flex: none;
-  opacity: 0.55;
-  transition: opacity 0.15s ease;
-}
-
-.pt-shortcut-reset:hover {
-  opacity: 1;
-}
-
-.pt-shortcut-footer {
-  margin: 4px 0 18px;
-}
-
-.pt-shortcut-auto {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--pt-teal-border);
-  border-radius: var(--pt-radius);
-  background: var(--pt-teal-1);
-  margin-bottom: 18px;
-}
-
-.pt-shortcut-browser {
-  padding-top: 4px;
-  border-top: 1px dashed var(--pt-line);
-}
-
-@keyframes pt-rec-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.28);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(13, 148, 136, 0);
-  }
-}
-
-@keyframes pt-rec-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 @keyframes pt-shake {
@@ -1945,14 +1805,11 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pt-keycap-recording,
-  .pt-rec-dot,
   .pt-keycap-error {
     animation: none;
   }
 
-  .pt-keycap,
-  .pt-shortcut-row {
+  .pt-keycap {
     transition: none;
   }
 }

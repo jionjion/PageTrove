@@ -1,9 +1,9 @@
 /**
  * 拾页快捷键:动作清单、绑定结构与默认键位。
  *
- * 只有 open-panel 同时注册为浏览器级 command(manifest.commands,备用键
- * Alt+Shift+S);其余动作全部由拾页自己的按键监听实现,因此可以自由
- * 自定义成任意组合键,甚至「双击修饰键」这类浏览器 API 不支持的形式。
+ * 全部动作由拾页自己的按键监听实现(不占用 manifest.commands),
+ * 因此可以自由自定义成任意组合键,甚至「双击修饰键」这类浏览器 API
+ * 不支持的形式。
  */
 
 export const SHORTCUT_ACTIONS = [
@@ -44,32 +44,6 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   'view-history': { kind: 'combo', keys: 'Alt+5' },
   'open-settings': { kind: 'combo', keys: 'Alt+,' },
 };
-
-/** 设置页分组:全局动作在任意网页生效;导航动作在网页与侧边栏中都生效。 */
-export const SHORTCUT_GROUPS: ReadonlyArray<{
-  title: string;
-  description: string;
-  actions: readonly ShortcutAction[];
-}> = [
-  {
-    title: '全局',
-    description: '在任意网页上按下即生效，无需打开侧边栏',
-    actions: ['open-panel', 'quick-save'],
-  },
-  {
-    title: '导航与对话',
-    description: '侧边栏已打开时直接切换；未打开时先唤起侧边栏再跳转',
-    actions: [
-      'new-chat',
-      'view-chat',
-      'view-current',
-      'view-clips',
-      'view-research',
-      'view-history',
-      'open-settings',
-    ],
-  },
-];
 
 /** 动作是否属于侧边栏视图导航(与 App 的 View 类型对应)。 */
 export type ShortcutView = 'chat' | 'current' | 'clips' | 'research' | 'history';

@@ -68,7 +68,7 @@ export function ChatView({ command, nonce, onTitleChange }: Props) {
     toggleRefreshPage,
     settleToolApproval,
   } = useChatController({ command, nonce, onTitleChange });
-  const verbose = chatSettings?.mcpVerboseLog ?? true;
+  const verbose = chatSettings?.mcpVerboseLog ?? false;
   const messageToolExecutionIds = new Set(
     (session?.messages ?? []).flatMap(
       (message) => message.toolCalls?.map((call) => call.id) ?? [],

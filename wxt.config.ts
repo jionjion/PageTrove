@@ -34,14 +34,5 @@ export default defineConfig({
         128: '/icon/128.png',
       },
     },
-
-    // 只注册一个浏览器级命令作为备用键;「双击 Alt」及其余自定义键位
-    // 由内容脚本监听实现,可在设置页自由改键。
-    commands: {
-      'open-panel': {
-        suggested_key: { default: 'Alt+Shift+S' },
-        description: '打开拾页侧边栏（备用键，默认双击 Alt）',
-      },
-    },
   },
 });
