@@ -717,8 +717,14 @@ body {
   pointer-events: none;
 }
 
-/* 对话欢迎页复用同一填充容器,但需要可交互(快捷问题按钮) */
+/* 对话欢迎页复用同一填充容器;容器本身不拦截点击,
+   仅快捷问题卡片可点——否则绝对定位的遮罩会盖住下方
+   引用托盘/告警等静态元素,导致其按钮无法点击。 */
 .empty-state-interactive {
+  pointer-events: none;
+}
+
+.empty-state-interactive .chat-welcome-card {
   pointer-events: auto;
 }
 
