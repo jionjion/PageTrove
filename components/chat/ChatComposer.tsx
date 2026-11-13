@@ -1,4 +1,4 @@
-import { Button, Input, Select, Tooltip } from 'antd';
+import { Button, Cascader, Input, Tooltip } from 'antd';
 import {
   AimOutlined,
   ArrowDownOutlined,
@@ -55,6 +55,17 @@ export function ChatComposer({
   onScrollToBottom,
   onToggleRefreshPage,
 }: Props) {
+  // 两级级联:一级供应商(仅分组),二级模型(value 为完整 provider::model 键)。
+  const cascaderOptions = modelOptions.map((group) => ({
+    value: group.label,
+    label: group.label,
+    children: group.options,
+  }));
+  const activeGroup = modelOptions.find((group) =>
+    group.options.some((option) => option.value === model),
+  );
+  const cascaderValue = model && activeGroup ? [activeGroup.label, model] : undefined;
+
   return (
     <div className="chat-input">
       <div className="chat-input-card">
@@ -74,16 +85,22 @@ export function ChatComposer({
           }}
         />
         <div className="chat-input-footer">
-          <Select
+          <Cascader
             size="small"
             variant="borderless"
             title="选择模型"
             aria-label="选择模型"
             style={{ minWidth: 120, maxWidth: 250 }}
-            popupMatchSelectWidth={false}
-            value={model}
-            onChange={onModelChange}
-            options={modelOptions}
+            placeholder="选择模型"
+            allowClear={false}
+            expandTrigger="hover"
+            value={cascaderValue}
+            options={cascaderOptions}
+            displayRender={(labels) => labels.at(-1) ?? ''}
+            onChange={(value) => {
+              const key = value.at(-1);
+              if (typeof key === 'string') onModelChange(key);
+            }}
           />
           <div className="chat-input-actions">
             {awayFromBottom && (

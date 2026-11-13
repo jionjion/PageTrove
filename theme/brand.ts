@@ -35,6 +35,16 @@ export const brandTheme: ThemeConfig = {
     Select: {
       borderRadius: 8,
     },
+    Cascader: {
+      // 侧边栏较窄:列宽取紧凑下限(内容长时 antd 自动撑开),行距收紧
+      controlItemWidth: 100,
+      dropdownHeight: 220,
+      optionPadding: '4px 10px',
+      controlItemBgHover: '#f0fdfa',
+      optionSelectedBg: '#f0fdfa',
+      optionSelectedColor: '#0f766e',
+      optionSelectedFontWeight: 500,
+    },
     Tag: {
       borderRadiusSM: 6,
     },
