@@ -8,9 +8,11 @@ import { registerSettingsPatchWriter } from '@/services/settings-store';
 import { isShortcutMessage } from '@/services/shortcuts';
 import { SHORTCUT_VIEW_MAP, type ShortcutAction } from '@/types/shortcuts';
 import { enqueueShortcutIntent } from '@/services/shortcut-intent-store';
-import { runQuickSave } from '@/services/quick-save';
+import { runLinkSave, runQuickSave } from '@/services/quick-save';
 
 const MENU_ID = 'pagetrove-ask-selection';
+const SAVE_PAGE_MENU_ID = 'pagetrove-save-page';
+const SAVE_LINK_MENU_ID = 'pagetrove-save-link';
 
 function openPanelForTab(tabId: number): void {
   browser.sidePanel.open({ tabId }).catch((error: unknown) => {
@@ -67,7 +69,7 @@ export default defineBackground(() => {
       console.error('设置侧边栏失败：', error);
     });
 
-  // 注册右键菜单：选中文字后"向拾页提问"
+  // 注册右键菜单：选中文字提问、收藏此页、收藏链接
   browser.runtime.onInstalled.addListener(() => {
     browser.contextMenus.removeAll(() => {
       browser.contextMenus.create({
@@ -75,10 +77,28 @@ export default defineBackground(() => {
         title: '向拾页提问："%s"',
         contexts: ['selection'],
       });
+      browser.contextMenus.create({
+        id: SAVE_PAGE_MENU_ID,
+        title: '收藏此页',
+        contexts: ['page'],
+      });
+      browser.contextMenus.create({
+        id: SAVE_LINK_MENU_ID,
+        title: '收藏链接',
+        contexts: ['link'],
+      });
     });
   });
 
   browser.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === SAVE_PAGE_MENU_ID) {
+      void runQuickSave(tab?.id);
+      return;
+    }
+    if (info.menuItemId === SAVE_LINK_MENU_ID) {
+      if (info.linkUrl) void runLinkSave(info.linkUrl, tab?.id);
+      return;
+    }
     if (info.menuItemId !== MENU_ID) return;
     const selection = info.selectionText?.trim();
     if (!selection || !tab?.id) return;

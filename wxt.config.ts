@@ -17,7 +17,7 @@ export default defineConfig({
       'unlimitedStorage',
       'tabs',
       'sidePanel',
-      // contextMenus：仅用于用户选中文字后显示"向拾页提问"菜单。
+      // contextMenus：右键菜单——选中文字提问、收藏此页、收藏链接。
       'contextMenus',
     ],
 

@@ -220,6 +220,135 @@ export async function extractPage(
   };
 }
 
+const LINK_FETCH_TIMEOUT_MS = 15_000;
+const MAX_LINK_HTML_LENGTH = 3_000_000;
+
+/** 限量读取 HTML，避免把超大响应整体拉进内存。 */
+async function readHtmlBounded(response: Response, limit: number): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return (await response.text()).slice(0, limit);
+  }
+  const decoder = new TextDecoder();
+  let html = '';
+  try {
+    while (html.length < limit) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    void reader.cancel().catch(() => {});
+  }
+  return html.slice(0, limit);
+}
+
+/** 从离线 HTML 解析页面快照；元数据规则与页内采集保持一致。 */
+function snapshotFromHtml(
+  html: string,
+  finalUrl: string,
+  maxLength: number,
+): PageSnapshot {
+  if (typeof DOMParser === 'undefined') {
+    throw new AppError('LINK_FETCH_FAILED', '当前环境不支持页面解析');
+  }
+  let doc: Document;
+  try {
+    // DOMParser 不执行脚本、不加载资源，仅做离线解析。
+    doc = new DOMParser().parseFromString(html, 'text/html');
+  } catch {
+    throw new AppError('LINK_FETCH_FAILED', '目标页面解析失败');
+  }
+
+  const getMeta = (...selectors: string[]): string | undefined => {
+    for (const selector of selectors) {
+      const element = doc.querySelector(selector);
+      const value =
+        element?.getAttribute('content') ??
+        element?.getAttribute('href') ??
+        element?.getAttribute('datetime') ??
+        element?.textContent ??
+        undefined;
+      if (value?.trim()) return value.trim();
+    }
+    return undefined;
+  };
+
+  const resolveUrl = (value?: string): string | undefined => {
+    if (!value) return undefined;
+    try {
+      return new URL(value, finalUrl).toString();
+    } catch {
+      return undefined;
+    }
+  };
+
+  const mainElement =
+    doc.querySelector('article') ??
+    doc.querySelector('main') ??
+    doc.querySelector('[role="main"]') ??
+    doc.body;
+  const fallbackText =
+    mainElement?.textContent?.replace(/\s+/g, ' ').trim().slice(0, maxLength) ||
+    undefined;
+
+  return {
+    url: finalUrl,
+    canonicalUrl: resolveUrl(getMeta('link[rel="canonical"]')),
+    title:
+      getMeta('meta[property="og:title"]', 'meta[name="twitter:title"]') ??
+      doc.title ??
+      '',
+    description: getMeta(
+      'meta[name="description"]',
+      'meta[property="og:description"]',
+      'meta[name="twitter:description"]',
+    ),
+    domain: new URL(finalUrl).hostname,
+    mainText: extractReadableText(html, maxLength) ?? fallbackText,
+    author: getMeta('meta[name="author"]', 'meta[property="article:author"]'),
+    publishedAt: getMeta('meta[property="article:published_time"]', 'time[datetime]'),
+    language: doc.documentElement.lang || undefined,
+    collectedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * 离线抓取目标页面并解析快照（右键「收藏链接」用），不打开标签页。
+ * 抓取/解析失败统一抛 LINK_FETCH_FAILED，由调用方决定降级策略。
+ */
+export async function extractFromUrl(
+  url: string,
+  options: ExtractOptions,
+): Promise<PageSnapshot> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      redirect: 'follow',
+      credentials: 'omit',
+      signal: AbortSignal.timeout(LINK_FETCH_TIMEOUT_MS),
+      headers: { Accept: 'text/html,application/xhtml+xml' },
+    });
+  } catch {
+    throw new AppError('LINK_FETCH_FAILED', '无法抓取目标页面');
+  }
+  if (!response.ok) {
+    throw new AppError('LINK_FETCH_FAILED', `目标页面返回 ${response.status}`);
+  }
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) {
+    throw new AppError('LINK_FETCH_FAILED', '目标链接不是网页');
+  }
+
+  let html: string;
+  try {
+    html = await readHtmlBounded(response, MAX_LINK_HTML_LENGTH);
+  } catch {
+    throw new AppError('LINK_FETCH_FAILED', '目标页面读取中断');
+  }
+  return snapshotFromHtml(html, response.url || url, options.maxContentLength);
+}
+
 /**
  * 在页面上下文中执行的采集函数。
  * 只读取公开的页面文本，不读取 input、密码框、Cookie 和本地存储。
